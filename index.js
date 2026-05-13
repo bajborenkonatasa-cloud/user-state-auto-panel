@@ -1,203 +1,169 @@
-const USP_KEY_PREFIX = 'user_state_drawer_v21_';
+console.log('[User State Drawer v2.2] loaded');
 
-function uspGetChatKey() {
-  const chatId =
-    window.chat_metadata?.main_chat ||
-    window.this_chid ||
-    window.name2 ||
-    location.pathname + location.search;
-  return USP_KEY_PREFIX + String(chatId);
-}
+(function () {
+  const KEY_PREFIX = 'user_state_drawer_v22_';
 
-function uspLoad() {
-  try { return JSON.parse(localStorage.getItem(uspGetChatKey()) || '{}'); }
-  catch { return {}; }
-}
-
-function uspSave(data) { localStorage.setItem(uspGetChatKey(), JSON.stringify(data)); }
-function uspId(id) { return document.getElementById(id); }
-
-function uspGetData() {
-  return {
-    feelings: uspId('usp_feelings')?.value || '',
-    thoughts: uspId('usp_thoughts')?.value || '',
-    goals: uspId('usp_goals')?.value || '',
-    desires: uspId('usp_desires')?.value || '',
-    secrets: uspId('usp_secrets')?.value || '',
-    relationship: uspId('usp_relationship')?.value || '',
-    notes: uspId('usp_notes')?.value || '',
-    trust: uspId('usp_trust')?.value || '50',
-    tension: uspId('usp_tension')?.value || '50',
-    affection: uspId('usp_affection')?.value || '50',
-    desirelevel: uspId('usp_desirelevel')?.value || '50',
-  };
-}
-
-function uspBuildBlock(data) {
-  return `[{{user}} INTERNAL STATE FOR THIS CHAT]
-Feelings: ${data.feelings || 'not specified'}
-Hidden thoughts: ${data.thoughts || 'not specified'}
-Current goals: ${data.goals || 'not specified'}
-Desires: ${data.desires || 'not specified'}
-Secrets: ${data.secrets || 'not specified'}
-Relationship to {{char}}: ${data.relationship || 'not specified'}
-Notes: ${data.notes || 'not specified'}
-Trust toward {{char}}: ${data.trust}/100
-Tension: ${data.tension}/100
-Affection toward {{char}}: ${data.affection}/100
-Desire level: ${data.desirelevel}/100
-[Instruction: Use this only as private context for {{user}}'s inner state. Do not quote this block directly.]`;
-}
-
-function uspUpdateNumbers() {
-  const pairs = [
-    ['usp_trust', 'usp_trust_val'],
-    ['usp_tension', 'usp_tension_val'],
-    ['usp_affection', 'usp_affection_val'],
-    ['usp_desirelevel', 'usp_desire_val'],
-  ];
-  for (const [input, out] of pairs) {
-    if (uspId(input) && uspId(out)) uspId(out).textContent = uspId(input).value;
+  function chatKey() {
+    const key =
+      window.chat_metadata?.main_chat ||
+      window.this_chid ||
+      window.name2 ||
+      location.pathname + location.search;
+    return KEY_PREFIX + String(key);
   }
-  uspUpdatePreview();
-}
 
-function uspUpdatePreview() {
-  const p = uspId('usp_preview');
-  if (p) p.textContent = uspBuildBlock(uspGetData());
-}
-
-function uspApplyData(data) {
-  ['feelings','thoughts','goals','desires','secrets','relationship','notes'].forEach(f => {
-    const el = uspId('usp_' + f);
-    if (el) el.value = data[f] || '';
-  });
-  const sliders = { trust:'usp_trust', tension:'usp_tension', affection:'usp_affection', desirelevel:'usp_desirelevel' };
-  for (const [key, id] of Object.entries(sliders)) {
-    const el = uspId(id);
-    if (el) el.value = data[key] || '50';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(chatKey()) || '{}'); }
+    catch { return {}; }
   }
-  uspUpdateNumbers();
-}
 
-function uspInsertToInput(text) {
-  const box = document.querySelector('#send_textarea');
-  if (!box) return;
-  box.value = box.value ? text + '\n\n' + box.value : text;
-  box.dispatchEvent(new Event('input', { bubbles: true }));
-}
+  function save(data) {
+    localStorage.setItem(chatKey(), JSON.stringify(data));
+  }
 
-function uspRender() {
-  if (!uspId('usp_chat_button')) {
-    const btn = document.createElement('button');
-    btn.id = 'usp_chat_button';
-    btn.title = 'Open {{user}} State Drawer';
-    btn.textContent = '💜';
-    document.body.appendChild(btn);
-    btn.onclick = () => {
-      uspApplyData(uspLoad());
-      uspId('usp_drawer')?.classList.add('usp_open');
+  function id(x) {
+    return document.getElementById(x);
+  }
+
+  function data() {
+    return {
+      feelings: id('usp_feelings_v22')?.value || '',
+      thoughts: id('usp_thoughts_v22')?.value || '',
+      goals: id('usp_goals_v22')?.value || '',
+      desires: id('usp_desires_v22')?.value || '',
+      secrets: id('usp_secrets_v22')?.value || '',
+      relationship: id('usp_relationship_v22')?.value || '',
+      notes: id('usp_notes_v22')?.value || '',
+      trust: id('usp_trust_v22')?.value || '50',
+      tension: id('usp_tension_v22')?.value || '50',
+      affection: id('usp_affection_v22')?.value || '50',
+      desire: id('usp_desire_v22')?.value || '50',
     };
   }
 
-  if (uspId('usp_drawer')) return;
+  function block(d) {
+    return `[{{user}} INTERNAL STATE FOR THIS CHAT]
+Feelings: ${d.feelings || 'not specified'}
+Hidden thoughts: ${d.thoughts || 'not specified'}
+Goals: ${d.goals || 'not specified'}
+Desires: ${d.desires || 'not specified'}
+Secrets: ${d.secrets || 'not specified'}
+Relationship to {{char}}: ${d.relationship || 'not specified'}
+Notes: ${d.notes || 'not specified'}
+Trust: ${d.trust}/100
+Tension: ${d.tension}/100
+Affection: ${d.affection}/100
+Desire: ${d.desire}/100
+[Use as private context for {{user}}. Do not quote directly.]`;
+  }
 
-  const drawer = document.createElement('div');
-  drawer.id = 'usp_drawer';
-  drawer.innerHTML = `
-    <div class="usp_header">
-      <h3>💜 {{user}} State</h3>
-      <button id="usp_close" class="menu_button">Close</button>
-    </div>
-
-    <div class="usp_hint">Saved separately for this chat. This describes your character's inner state.</div>
-
-    <div class="usp_group"><label>Feelings / Чувства</label><textarea id="usp_feelings"></textarea></div>
-    <div class="usp_group"><label>Hidden thoughts / Скрытые мысли</label><textarea id="usp_thoughts"></textarea></div>
-    <div class="usp_group"><label>Goals / Цели</label><textarea id="usp_goals"></textarea></div>
-    <div class="usp_group"><label>Desires / Желания</label><textarea id="usp_desires"></textarea></div>
-    <div class="usp_group"><label>Secrets / Секреты</label><textarea id="usp_secrets"></textarea></div>
-    <div class="usp_group"><label>Relationship to {{char}} / Отношение к {{char}}</label><textarea id="usp_relationship"></textarea></div>
-    <div class="usp_group"><label>Notes / Заметки</label><textarea id="usp_notes"></textarea></div>
-
-    <div class="usp_group"><label class="usp_slider_label"><span>Trust / Доверие</span><span id="usp_trust_val"></span></label><input id="usp_trust" type="range" min="0" max="100" value="50"></div>
-    <div class="usp_group"><label class="usp_slider_label"><span>Tension / Напряжение</span><span id="usp_tension_val"></span></label><input id="usp_tension" type="range" min="0" max="100" value="50"></div>
-    <div class="usp_group"><label class="usp_slider_label"><span>Affection / Привязанность</span><span id="usp_affection_val"></span></label><input id="usp_affection" type="range" min="0" max="100" value="50"></div>
-    <div class="usp_group"><label class="usp_slider_label"><span>Desire / Желание</span><span id="usp_desire_val"></span></label><input id="usp_desirelevel" type="range" min="0" max="100" value="50"></div>
-
-    <div class="usp_buttons">
-      <button id="usp_save" class="menu_button">Save</button>
-      <button id="usp_insert" class="menu_button">Insert now</button>
-    </div>
-
-    <div id="usp_preview"></div>
-  `;
-  document.body.appendChild(drawer);
-
-  uspId('usp_close').onclick = () => uspId('usp_drawer').classList.remove('usp_open');
-
-  ['usp_trust','usp_tension','usp_affection','usp_desirelevel'].forEach(id => {
-    uspId(id).addEventListener('input', () => {
-      uspSave(uspGetData());
-      uspUpdateNumbers();
+  function updatePreview() {
+    const d = data();
+    ['trust','tension','affection','desire'].forEach(k => {
+      const span = id('usp_' + k + '_val_v22');
+      const input = id('usp_' + k + '_v22');
+      if (span && input) span.textContent = input.value;
     });
-  });
+    const p = id('usp_preview_v22');
+    if (p) p.textContent = block(d);
+    save(d);
+  }
 
-  ['usp_feelings','usp_thoughts','usp_goals','usp_desires','usp_secrets','usp_relationship','usp_notes'].forEach(id => {
-    uspId(id).addEventListener('input', () => {
-      uspSave(uspGetData());
-      uspUpdatePreview();
+  function apply(d) {
+    const map = {
+      feelings: 'usp_feelings_v22',
+      thoughts: 'usp_thoughts_v22',
+      goals: 'usp_goals_v22',
+      desires: 'usp_desires_v22',
+      secrets: 'usp_secrets_v22',
+      relationship: 'usp_relationship_v22',
+      notes: 'usp_notes_v22',
+      trust: 'usp_trust_v22',
+      tension: 'usp_tension_v22',
+      affection: 'usp_affection_v22',
+      desire: 'usp_desire_v22',
+    };
+    Object.entries(map).forEach(([k, elid]) => {
+      const el = id(elid);
+      if (el) el.value = d[k] || (el.type === 'range' ? '50' : '');
     });
-  });
+    updatePreview();
+  }
 
-  uspId('usp_save').onclick = () => {
-    uspSave(uspGetData());
-    toastr?.success?.('{{user}} state saved for this chat');
-  };
-
-  uspId('usp_insert').onclick = () => {
-    const data = uspGetData();
-    uspSave(data);
-    uspInsertToInput(uspBuildBlock(data));
-    toastr?.success?.('{{user}} state inserted');
-  };
-
-  uspApplyData(uspLoad());
-}
-
-function uspPatchFetchOnce() {
-  if (window.__uspDrawerFetchPatchedV21) return;
-  window.__uspDrawerFetchPatchedV21 = true;
-  const originalFetch = window.fetch;
-  window.fetch = async function(resource, config) {
-    try {
-      const url = typeof resource === 'string' ? resource : resource?.url || '';
-      if (url.includes('/generate') && config?.body && typeof config.body === 'string') {
-        const data = uspGetData();
-        uspSave(data);
-        const block = uspBuildBlock(data);
-        const body = JSON.parse(config.body);
-        if (typeof body.user_input === 'string' && body.user_input.trim()) {
-          body.user_input = `${block}\n\n${body.user_input}`;
-        } else if (Array.isArray(body.messages)) {
-          body.messages.unshift({ role: 'system', content: block });
-        }
-        config.body = JSON.stringify(body);
-      }
-    } catch (e) {
-      console.error('[User State Drawer] injection failed:', e);
+  function insertNow() {
+    const box = document.querySelector('#send_textarea, textarea[name="send_textarea"], textarea');
+    if (!box) {
+      alert('Text input not found');
+      return;
     }
-    return originalFetch.apply(this, arguments);
-  };
-}
+    const text = block(data());
+    box.value = box.value ? text + '\\n\\n' + box.value : text;
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 
-function uspBoot() {
-  uspRender();
-  uspPatchFetchOnce();
-  setTimeout(uspRender, 1000);
-  setTimeout(uspRender, 3000);
-}
+  function render() {
+    if (!id('usp_button_v22')) {
+      const btn = document.createElement('button');
+      btn.id = 'usp_button_v22';
+      btn.textContent = '💜';
+      btn.onclick = () => {
+        apply(load());
+        id('usp_panel_v22')?.classList.add('open');
+      };
+      document.body.appendChild(btn);
+    }
 
-jQuery(() => uspBoot());
-document.addEventListener('DOMContentLoaded', uspBoot);
-setTimeout(uspBoot, 5000);
+    if (!id('usp_panel_v22')) {
+      const panel = document.createElement('div');
+      panel.id = 'usp_panel_v22';
+      panel.innerHTML = `
+        <div class="usp_head_v22">
+          <h3>💜 {{user}} State</h3>
+          <button id="usp_close_v22">Close</button>
+        </div>
+        <p>Saved separately for this chat.</p>
+
+        <label>Feelings / Чувства</label><textarea id="usp_feelings_v22"></textarea>
+        <label>Hidden thoughts / Скрытые мысли</label><textarea id="usp_thoughts_v22"></textarea>
+        <label>Goals / Цели</label><textarea id="usp_goals_v22"></textarea>
+        <label>Desires / Желания</label><textarea id="usp_desires_v22"></textarea>
+        <label>Secrets / Секреты</label><textarea id="usp_secrets_v22"></textarea>
+        <label>Relationship to {{char}} / Отношение к {{char}}</label><textarea id="usp_relationship_v22"></textarea>
+        <label>Notes / Заметки</label><textarea id="usp_notes_v22"></textarea>
+
+        <div class="usp_row_v22">Trust: <span id="usp_trust_val_v22">50</span><input id="usp_trust_v22" type="range" min="0" max="100" value="50"></div>
+        <div class="usp_row_v22">Tension: <span id="usp_tension_val_v22">50</span><input id="usp_tension_v22" type="range" min="0" max="100" value="50"></div>
+        <div class="usp_row_v22">Affection: <span id="usp_affection_val_v22">50</span><input id="usp_affection_v22" type="range" min="0" max="100" value="50"></div>
+        <div class="usp_row_v22">Desire: <span id="usp_desire_val_v22">50</span><input id="usp_desire_v22" type="range" min="0" max="100" value="50"></div>
+
+        <button id="usp_save_v22">Save</button>
+        <button id="usp_insert_v22">Insert now</button>
+        <div id="usp_preview_v22" class="usp_preview_v22"></div>
+      `;
+      document.body.appendChild(panel);
+
+      id('usp_close_v22').onclick = () => panel.classList.remove('open');
+      id('usp_save_v22').onclick = () => {
+        save(data());
+        alert('{{user}} state saved');
+      };
+      id('usp_insert_v22').onclick = insertNow;
+
+      panel.querySelectorAll('textarea,input').forEach(el => {
+        el.addEventListener('input', updatePreview);
+      });
+
+      apply(load());
+    }
+  }
+
+  function boot() {
+    try { render(); } catch (e) { console.error('[User State Drawer v2.2] render failed', e); }
+  }
+
+  boot();
+  setTimeout(boot, 500);
+  setTimeout(boot, 1500);
+  setTimeout(boot, 3000);
+  setInterval(boot, 5000);
+})();
