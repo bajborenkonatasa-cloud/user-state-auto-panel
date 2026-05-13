@@ -1,4 +1,4 @@
-const USP_KEY_PREFIX = 'user_state_drawer_v2_';
+const USP_KEY_PREFIX = 'user_state_drawer_v21_';
 
 function uspGetChatKey() {
   const chatId =
@@ -10,20 +10,12 @@ function uspGetChatKey() {
 }
 
 function uspLoad() {
-  try {
-    return JSON.parse(localStorage.getItem(uspGetChatKey()) || '{}');
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(localStorage.getItem(uspGetChatKey()) || '{}'); }
+  catch { return {}; }
 }
 
-function uspSave(data) {
-  localStorage.setItem(uspGetChatKey(), JSON.stringify(data));
-}
-
-function uspId(id) {
-  return document.getElementById(id);
-}
+function uspSave(data) { localStorage.setItem(uspGetChatKey(), JSON.stringify(data)); }
+function uspId(id) { return document.getElementById(id); }
 
 function uspGetData() {
   return {
@@ -54,7 +46,7 @@ Trust toward {{char}}: ${data.trust}/100
 Tension: ${data.tension}/100
 Affection toward {{char}}: ${data.affection}/100
 Desire level: ${data.desirelevel}/100
-[Instruction: Use this as private context for {{user}}'s inner state. Do not quote this block directly unless the story naturally reveals it.]`;
+[Instruction: Use this only as private context for {{user}}'s inner state. Do not quote this block directly.]`;
 }
 
 function uspUpdateNumbers() {
@@ -76,24 +68,15 @@ function uspUpdatePreview() {
 }
 
 function uspApplyData(data) {
-  const fields = ['feelings','thoughts','goals','desires','secrets','relationship','notes'];
-  for (const f of fields) {
+  ['feelings','thoughts','goals','desires','secrets','relationship','notes'].forEach(f => {
     const el = uspId('usp_' + f);
     if (el) el.value = data[f] || '';
-  }
-
-  const sliders = {
-    trust: 'usp_trust',
-    tension: 'usp_tension',
-    affection: 'usp_affection',
-    desirelevel: 'usp_desirelevel',
-  };
-
+  });
+  const sliders = { trust:'usp_trust', tension:'usp_tension', affection:'usp_affection', desirelevel:'usp_desirelevel' };
   for (const [key, id] of Object.entries(sliders)) {
     const el = uspId(id);
     if (el) el.value = data[key] || '50';
   }
-
   uspUpdateNumbers();
 }
 
@@ -105,10 +88,10 @@ function uspInsertToInput(text) {
 }
 
 function uspRender() {
-  if (!uspId('usp_floating_button')) {
+  if (!uspId('usp_chat_button')) {
     const btn = document.createElement('button');
-    btn.id = 'usp_floating_button';
-    btn.title = 'User State Drawer';
+    btn.id = 'usp_chat_button';
+    btn.title = 'Open {{user}} State Drawer';
     btn.textContent = '💜';
     document.body.appendChild(btn);
     btn.onclick = () => {
@@ -127,9 +110,7 @@ function uspRender() {
       <button id="usp_close" class="menu_button">Close</button>
     </div>
 
-    <div class="usp_hint">
-      This state is saved separately for the current chat. Fill it as your character's inner state.
-    </div>
+    <div class="usp_hint">Saved separately for this chat. This describes your character's inner state.</div>
 
     <div class="usp_group"><label>Feelings / Чувства</label><textarea id="usp_feelings"></textarea></div>
     <div class="usp_group"><label>Hidden thoughts / Скрытые мысли</label><textarea id="usp_thoughts"></textarea></div>
@@ -139,25 +120,10 @@ function uspRender() {
     <div class="usp_group"><label>Relationship to {{char}} / Отношение к {{char}}</label><textarea id="usp_relationship"></textarea></div>
     <div class="usp_group"><label>Notes / Заметки</label><textarea id="usp_notes"></textarea></div>
 
-    <div class="usp_group">
-      <label class="usp_slider_label"><span>Trust / Доверие</span><span id="usp_trust_val"></span></label>
-      <input id="usp_trust" type="range" min="0" max="100" value="50">
-    </div>
-
-    <div class="usp_group">
-      <label class="usp_slider_label"><span>Tension / Напряжение</span><span id="usp_tension_val"></span></label>
-      <input id="usp_tension" type="range" min="0" max="100" value="50">
-    </div>
-
-    <div class="usp_group">
-      <label class="usp_slider_label"><span>Affection / Привязанность</span><span id="usp_affection_val"></span></label>
-      <input id="usp_affection" type="range" min="0" max="100" value="50">
-    </div>
-
-    <div class="usp_group">
-      <label class="usp_slider_label"><span>Desire / Желание</span><span id="usp_desire_val"></span></label>
-      <input id="usp_desirelevel" type="range" min="0" max="100" value="50">
-    </div>
+    <div class="usp_group"><label class="usp_slider_label"><span>Trust / Доверие</span><span id="usp_trust_val"></span></label><input id="usp_trust" type="range" min="0" max="100" value="50"></div>
+    <div class="usp_group"><label class="usp_slider_label"><span>Tension / Напряжение</span><span id="usp_tension_val"></span></label><input id="usp_tension" type="range" min="0" max="100" value="50"></div>
+    <div class="usp_group"><label class="usp_slider_label"><span>Affection / Привязанность</span><span id="usp_affection_val"></span></label><input id="usp_affection" type="range" min="0" max="100" value="50"></div>
+    <div class="usp_group"><label class="usp_slider_label"><span>Desire / Желание</span><span id="usp_desire_val"></span></label><input id="usp_desirelevel" type="range" min="0" max="100" value="50"></div>
 
     <div class="usp_buttons">
       <button id="usp_save" class="menu_button">Save</button>
@@ -200,9 +166,8 @@ function uspRender() {
 }
 
 function uspPatchFetchOnce() {
-  if (window.__uspDrawerFetchPatched) return;
-  window.__uspDrawerFetchPatched = true;
-
+  if (window.__uspDrawerFetchPatchedV21) return;
+  window.__uspDrawerFetchPatchedV21 = true;
   const originalFetch = window.fetch;
   window.fetch = async function(resource, config) {
     try {
@@ -212,13 +177,11 @@ function uspPatchFetchOnce() {
         uspSave(data);
         const block = uspBuildBlock(data);
         const body = JSON.parse(config.body);
-
         if (typeof body.user_input === 'string' && body.user_input.trim()) {
           body.user_input = `${block}\n\n${body.user_input}`;
         } else if (Array.isArray(body.messages)) {
           body.messages.unshift({ role: 'system', content: block });
         }
-
         config.body = JSON.stringify(body);
       }
     } catch (e) {
@@ -228,7 +191,13 @@ function uspPatchFetchOnce() {
   };
 }
 
-jQuery(() => {
+function uspBoot() {
   uspRender();
   uspPatchFetchOnce();
-});
+  setTimeout(uspRender, 1000);
+  setTimeout(uspRender, 3000);
+}
+
+jQuery(() => uspBoot());
+document.addEventListener('DOMContentLoaded', uspBoot);
+setTimeout(uspBoot, 5000);
