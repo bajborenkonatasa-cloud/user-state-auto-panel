@@ -1,11 +1,11 @@
 {
-  "display_name": "User State Test Button",
+  "display_name": "User State Drawer",
   "loading_order": 99,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "Natalie + ChatGPT",
-  "version": "0.1.0",
+  "version": "3.2.0",
   "homePage": "https://github.com/bajborenkonatasa-cloud/user-state-auto-panel"
 }
