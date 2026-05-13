@@ -1,11 +1,11 @@
 {
-  "display_name": "User State Auto Panel",
-  "loading_order": 20,
+  "display_name": "User State Drawer",
+  "loading_order": 25,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "Natalie + ChatGPT",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "homePage": ""
 }

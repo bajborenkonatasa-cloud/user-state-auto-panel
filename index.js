@@ -1,123 +1,234 @@
-import { eventSource, event_types, extension_prompt_types, setExtensionPrompt } from '../../../../script.js';
+const USP_KEY_PREFIX = 'user_state_drawer_v2_';
 
-const MODULE_NAME = 'user-state-auto-panel';
-const KEY = 'user_state_auto_panel_data_v1';
-
-function loadState() {
-  try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
-  catch { return {}; }
+function uspGetChatKey() {
+  const chatId =
+    window.chat_metadata?.main_chat ||
+    window.this_chid ||
+    window.name2 ||
+    location.pathname + location.search;
+  return USP_KEY_PREFIX + String(chatId);
 }
 
-function saveState(data) {
-  localStorage.setItem(KEY, JSON.stringify(data));
+function uspLoad() {
+  try {
+    return JSON.parse(localStorage.getItem(uspGetChatKey()) || '{}');
+  } catch {
+    return {};
+  }
 }
 
-function esc(text) {
-  return String(text || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function uspSave(data) {
+  localStorage.setItem(uspGetChatKey(), JSON.stringify(data));
 }
 
-function collectFromPanel() {
+function uspId(id) {
+  return document.getElementById(id);
+}
+
+function uspGetData() {
   return {
-    enabled: document.querySelector('#usap_enabled')?.checked ?? true,
-    name: document.querySelector('#usap_name')?.value || '{{user}}',
-    feelings: document.querySelector('#usap_feelings')?.value || '',
-    thoughts: document.querySelector('#usap_thoughts')?.value || '',
-    goals: document.querySelector('#usap_goals')?.value || '',
-    desires: document.querySelector('#usap_desires')?.value || '',
-    relation: document.querySelector('#usap_relation')?.value || '',
-    secret: document.querySelector('#usap_secret')?.value || '',
-    notes: document.querySelector('#usap_notes')?.value || '',
+    feelings: uspId('usp_feelings')?.value || '',
+    thoughts: uspId('usp_thoughts')?.value || '',
+    goals: uspId('usp_goals')?.value || '',
+    desires: uspId('usp_desires')?.value || '',
+    secrets: uspId('usp_secrets')?.value || '',
+    relationship: uspId('usp_relationship')?.value || '',
+    notes: uspId('usp_notes')?.value || '',
+    trust: uspId('usp_trust')?.value || '50',
+    tension: uspId('usp_tension')?.value || '50',
+    affection: uspId('usp_affection')?.value || '50',
+    desirelevel: uspId('usp_desirelevel')?.value || '50',
   };
 }
 
-function buildPrompt(data) {
-  const name = data.name || '{{user}}';
-  const lines = [
-    `[Current inner state of ${name}]`,
-    `This is private roleplay guidance for ${name}. Use it to understand ${name}'s emotions, hidden motives and behavior. Do not quote this block directly unless the user asks.`,
-    data.feelings ? `Feelings: ${data.feelings}` : '',
-    data.thoughts ? `Hidden thoughts: ${data.thoughts}` : '',
-    data.goals ? `Goals: ${data.goals}` : '',
-    data.desires ? `Desires: ${data.desires}` : '',
-    data.relation ? `Relationship attitude: ${data.relation}` : '',
-    data.secret ? `Secret: ${data.secret}` : '',
-    data.notes ? `Extra notes: ${data.notes}` : '',
-    `[/Current inner state of ${name}]`,
-  ].filter(Boolean);
-  return lines.join('\n');
+function uspBuildBlock(data) {
+  return `[{{user}} INTERNAL STATE FOR THIS CHAT]
+Feelings: ${data.feelings || 'not specified'}
+Hidden thoughts: ${data.thoughts || 'not specified'}
+Current goals: ${data.goals || 'not specified'}
+Desires: ${data.desires || 'not specified'}
+Secrets: ${data.secrets || 'not specified'}
+Relationship to {{char}}: ${data.relationship || 'not specified'}
+Notes: ${data.notes || 'not specified'}
+Trust toward {{char}}: ${data.trust}/100
+Tension: ${data.tension}/100
+Affection toward {{char}}: ${data.affection}/100
+Desire level: ${data.desirelevel}/100
+[Instruction: Use this as private context for {{user}}'s inner state. Do not quote this block directly unless the story naturally reveals it.]`;
 }
 
-function applyExtensionPrompt() {
-  const data = loadState();
-  const text = data.enabled === false ? '' : buildPrompt(data);
-  try {
-    setExtensionPrompt(MODULE_NAME, text, extension_prompt_types.IN_PROMPT, 0, false);
-  } catch (err) {
-    console.warn('User State Auto Panel: setExtensionPrompt failed', err);
+function uspUpdateNumbers() {
+  const pairs = [
+    ['usp_trust', 'usp_trust_val'],
+    ['usp_tension', 'usp_tension_val'],
+    ['usp_affection', 'usp_affection_val'],
+    ['usp_desirelevel', 'usp_desire_val'],
+  ];
+  for (const [input, out] of pairs) {
+    if (uspId(input) && uspId(out)) uspId(out).textContent = uspId(input).value;
   }
-  const preview = document.querySelector('#usap_preview');
-  if (preview) preview.textContent = text || 'Auto injection is disabled.';
+  uspUpdatePreview();
 }
 
-function insertToChat(text) {
+function uspUpdatePreview() {
+  const p = uspId('usp_preview');
+  if (p) p.textContent = uspBuildBlock(uspGetData());
+}
+
+function uspApplyData(data) {
+  const fields = ['feelings','thoughts','goals','desires','secrets','relationship','notes'];
+  for (const f of fields) {
+    const el = uspId('usp_' + f);
+    if (el) el.value = data[f] || '';
+  }
+
+  const sliders = {
+    trust: 'usp_trust',
+    tension: 'usp_tension',
+    affection: 'usp_affection',
+    desirelevel: 'usp_desirelevel',
+  };
+
+  for (const [key, id] of Object.entries(sliders)) {
+    const el = uspId(id);
+    if (el) el.value = data[key] || '50';
+  }
+
+  uspUpdateNumbers();
+}
+
+function uspInsertToInput(text) {
   const box = document.querySelector('#send_textarea');
   if (!box) return;
-  box.value = box.value ? box.value + '\n\n' + text : text;
+  box.value = box.value ? text + '\n\n' + box.value : text;
   box.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-function renderPanel() {
-  if (document.querySelector('#user_state_auto_panel')) return;
-  const data = Object.assign({ enabled: true, name: '{{user}}' }, loadState());
-  const panel = document.createElement('div');
-  panel.id = 'user_state_auto_panel';
-  panel.innerHTML = `
-    <h3>💜 User State Auto Panel</h3>
-    <div class="usap-small">Write your character state manually. When enabled, it is quietly added to the prompt automatically.</div>
-    <div class="usap-row">
-      <label><input type="checkbox" id="usap_enabled" ${data.enabled === false ? '' : 'checked'}> Auto add to prompt</label>
-    </div>
-    <label>Character name</label>
-    <input id="usap_name" value="${esc(data.name || '{{user}}')}" />
-    <label>Feelings / Чувства</label>
-    <textarea id="usap_feelings">${esc(data.feelings)}</textarea>
-    <label>Hidden thoughts / Скрытые мысли</label>
-    <textarea id="usap_thoughts">${esc(data.thoughts)}</textarea>
-    <label>Goals / Цели</label>
-    <textarea id="usap_goals">${esc(data.goals)}</textarea>
-    <label>Desires / Желания</label>
-    <textarea id="usap_desires">${esc(data.desires)}</textarea>
-    <label>Relationship attitude / Отношение к персонажу</label>
-    <textarea id="usap_relation">${esc(data.relation)}</textarea>
-    <label>Secret / Секрет</label>
-    <textarea id="usap_secret">${esc(data.secret)}</textarea>
-    <label>Notes / Заметки</label>
-    <textarea id="usap_notes">${esc(data.notes)}</textarea>
-    <div class="usap-row">
-      <button id="usap_save" class="menu_button">Save / Apply</button>
-      <button id="usap_insert" class="menu_button">Insert to chat</button>
-    </div>
-    <div class="usap-small">Preview of hidden prompt:</div>
-    <div id="usap_preview" class="usap-preview"></div>
-  `;
-  const target = document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings');
-  if (target) target.prepend(panel);
+function uspRender() {
+  if (!uspId('usp_floating_button')) {
+    const btn = document.createElement('button');
+    btn.id = 'usp_floating_button';
+    btn.title = 'User State Drawer';
+    btn.textContent = '💜';
+    document.body.appendChild(btn);
+    btn.onclick = () => {
+      uspApplyData(uspLoad());
+      uspId('usp_drawer')?.classList.add('usp_open');
+    };
+  }
 
-  const saveAndApply = () => { const next = collectFromPanel(); saveState(next); applyExtensionPrompt(); toastr.success('User state saved and applied'); };
-  document.querySelector('#usap_save').onclick = saveAndApply;
-  document.querySelector('#usap_insert').onclick = () => { const next = collectFromPanel(); saveState(next); const text = buildPrompt(next); insertToChat(text); applyExtensionPrompt(); toastr.success('Inserted to chat'); };
-  panel.querySelectorAll('textarea,input').forEach(el => el.addEventListener('change', saveAndApply));
-  applyExtensionPrompt();
+  if (uspId('usp_drawer')) return;
+
+  const drawer = document.createElement('div');
+  drawer.id = 'usp_drawer';
+  drawer.innerHTML = `
+    <div class="usp_header">
+      <h3>💜 {{user}} State</h3>
+      <button id="usp_close" class="menu_button">Close</button>
+    </div>
+
+    <div class="usp_hint">
+      This state is saved separately for the current chat. Fill it as your character's inner state.
+    </div>
+
+    <div class="usp_group"><label>Feelings / Чувства</label><textarea id="usp_feelings"></textarea></div>
+    <div class="usp_group"><label>Hidden thoughts / Скрытые мысли</label><textarea id="usp_thoughts"></textarea></div>
+    <div class="usp_group"><label>Goals / Цели</label><textarea id="usp_goals"></textarea></div>
+    <div class="usp_group"><label>Desires / Желания</label><textarea id="usp_desires"></textarea></div>
+    <div class="usp_group"><label>Secrets / Секреты</label><textarea id="usp_secrets"></textarea></div>
+    <div class="usp_group"><label>Relationship to {{char}} / Отношение к {{char}}</label><textarea id="usp_relationship"></textarea></div>
+    <div class="usp_group"><label>Notes / Заметки</label><textarea id="usp_notes"></textarea></div>
+
+    <div class="usp_group">
+      <label class="usp_slider_label"><span>Trust / Доверие</span><span id="usp_trust_val"></span></label>
+      <input id="usp_trust" type="range" min="0" max="100" value="50">
+    </div>
+
+    <div class="usp_group">
+      <label class="usp_slider_label"><span>Tension / Напряжение</span><span id="usp_tension_val"></span></label>
+      <input id="usp_tension" type="range" min="0" max="100" value="50">
+    </div>
+
+    <div class="usp_group">
+      <label class="usp_slider_label"><span>Affection / Привязанность</span><span id="usp_affection_val"></span></label>
+      <input id="usp_affection" type="range" min="0" max="100" value="50">
+    </div>
+
+    <div class="usp_group">
+      <label class="usp_slider_label"><span>Desire / Желание</span><span id="usp_desire_val"></span></label>
+      <input id="usp_desirelevel" type="range" min="0" max="100" value="50">
+    </div>
+
+    <div class="usp_buttons">
+      <button id="usp_save" class="menu_button">Save</button>
+      <button id="usp_insert" class="menu_button">Insert now</button>
+    </div>
+
+    <div id="usp_preview"></div>
+  `;
+  document.body.appendChild(drawer);
+
+  uspId('usp_close').onclick = () => uspId('usp_drawer').classList.remove('usp_open');
+
+  ['usp_trust','usp_tension','usp_affection','usp_desirelevel'].forEach(id => {
+    uspId(id).addEventListener('input', () => {
+      uspSave(uspGetData());
+      uspUpdateNumbers();
+    });
+  });
+
+  ['usp_feelings','usp_thoughts','usp_goals','usp_desires','usp_secrets','usp_relationship','usp_notes'].forEach(id => {
+    uspId(id).addEventListener('input', () => {
+      uspSave(uspGetData());
+      uspUpdatePreview();
+    });
+  });
+
+  uspId('usp_save').onclick = () => {
+    uspSave(uspGetData());
+    toastr?.success?.('{{user}} state saved for this chat');
+  };
+
+  uspId('usp_insert').onclick = () => {
+    const data = uspGetData();
+    uspSave(data);
+    uspInsertToInput(uspBuildBlock(data));
+    toastr?.success?.('{{user}} state inserted');
+  };
+
+  uspApplyData(uspLoad());
+}
+
+function uspPatchFetchOnce() {
+  if (window.__uspDrawerFetchPatched) return;
+  window.__uspDrawerFetchPatched = true;
+
+  const originalFetch = window.fetch;
+  window.fetch = async function(resource, config) {
+    try {
+      const url = typeof resource === 'string' ? resource : resource?.url || '';
+      if (url.includes('/generate') && config?.body && typeof config.body === 'string') {
+        const data = uspGetData();
+        uspSave(data);
+        const block = uspBuildBlock(data);
+        const body = JSON.parse(config.body);
+
+        if (typeof body.user_input === 'string' && body.user_input.trim()) {
+          body.user_input = `${block}\n\n${body.user_input}`;
+        } else if (Array.isArray(body.messages)) {
+          body.messages.unshift({ role: 'system', content: block });
+        }
+
+        config.body = JSON.stringify(body);
+      }
+    } catch (e) {
+      console.error('[User State Drawer] injection failed:', e);
+    }
+    return originalFetch.apply(this, arguments);
+  };
 }
 
 jQuery(() => {
-  renderPanel();
-  applyExtensionPrompt();
-  eventSource.on(event_types.APP_READY, () => { renderPanel(); applyExtensionPrompt(); });
-  eventSource.on(event_types.CHAT_CHANGED, () => applyExtensionPrompt());
+  uspRender();
+  uspPatchFetchOnce();
 });
