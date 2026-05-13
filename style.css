@@ -1,0 +1,27 @@
+#user_state_auto_panel {
+  padding: 10px;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 12px;
+  margin: 10px 0;
+  background: var(--SmartThemeBlurTintColor);
+}
+#user_state_auto_panel h3 { margin: 0 0 8px 0; }
+#user_state_auto_panel label { display:block; margin-top:8px; font-weight:700; }
+#user_state_auto_panel textarea,
+#user_state_auto_panel input {
+  width: 100%;
+  margin: 5px 0 8px 0;
+  box-sizing: border-box;
+}
+#user_state_auto_panel textarea { min-height: 55px; resize: vertical; }
+.usap-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+.usap-small { opacity:0.8; font-size:0.9em; }
+.usap-preview {
+  white-space: pre-wrap;
+  border: 1px dashed var(--SmartThemeBorderColor);
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow:auto;
+}
