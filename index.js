@@ -1,169 +1,242 @@
-console.log('[User State Drawer v2.2] loaded');
+import { eventSource, event_types } from '/script.js';
+import { getContext } from '/scripts/extensions.js';
 
-(function () {
-  const KEY_PREFIX = 'user_state_drawer_v22_';
+console.log('[User State Drawer v3] module loaded');
 
-  function chatKey() {
-    const key =
-      window.chat_metadata?.main_chat ||
-      window.this_chid ||
-      window.name2 ||
-      location.pathname + location.search;
-    return KEY_PREFIX + String(key);
-  }
+const USD3_PREFIX = 'user_state_drawer_v3_';
 
-  function load() {
-    try { return JSON.parse(localStorage.getItem(chatKey()) || '{}'); }
-    catch { return {}; }
-  }
+function $(id) {
+    return document.getElementById(id);
+}
 
-  function save(data) {
-    localStorage.setItem(chatKey(), JSON.stringify(data));
-  }
+function make(tag, attrs = {}, text = '') {
+    const el = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+        if (key === 'class') el.className = value;
+        else if (key === 'type') el.type = value;
+        else if (key === 'min') el.min = value;
+        else if (key === 'max') el.max = value;
+        else if (key === 'value') el.value = value;
+        else el.setAttribute(key, value);
+    }
+    if (text) el.textContent = text;
+    return el;
+}
 
-  function id(x) {
-    return document.getElementById(x);
-  }
+function getChatKey() {
+    try {
+        const context = getContext?.();
+        const charId = context?.characterId ?? window.this_chid ?? 'unknown_char';
+        const chatId = context?.chatId ?? window.chat_metadata?.main_chat ?? window.name2 ?? location.search ?? 'unknown_chat';
+        return USD3_PREFIX + String(charId) + '_' + String(chatId);
+    } catch {
+        return USD3_PREFIX + location.pathname + location.search;
+    }
+}
 
-  function data() {
+function loadState() {
+    try {
+        return JSON.parse(localStorage.getItem(getChatKey()) || '{}');
+    } catch {
+        return {};
+    }
+}
+
+function saveState(data) {
+    localStorage.setItem(getChatKey(), JSON.stringify(data));
+}
+
+function getData() {
     return {
-      feelings: id('usp_feelings_v22')?.value || '',
-      thoughts: id('usp_thoughts_v22')?.value || '',
-      goals: id('usp_goals_v22')?.value || '',
-      desires: id('usp_desires_v22')?.value || '',
-      secrets: id('usp_secrets_v22')?.value || '',
-      relationship: id('usp_relationship_v22')?.value || '',
-      notes: id('usp_notes_v22')?.value || '',
-      trust: id('usp_trust_v22')?.value || '50',
-      tension: id('usp_tension_v22')?.value || '50',
-      affection: id('usp_affection_v22')?.value || '50',
-      desire: id('usp_desire_v22')?.value || '50',
+        feelings: $('usd3_feelings')?.value || '',
+        thoughts: $('usd3_thoughts')?.value || '',
+        goals: $('usd3_goals')?.value || '',
+        desires: $('usd3_desires')?.value || '',
+        secrets: $('usd3_secrets')?.value || '',
+        relationship: $('usd3_relationship')?.value || '',
+        notes: $('usd3_notes')?.value || '',
+        trust: $('usd3_trust')?.value || '50',
+        tension: $('usd3_tension')?.value || '50',
+        affection: $('usd3_affection')?.value || '50',
+        desire: $('usd3_desire')?.value || '50',
     };
-  }
+}
 
-  function block(d) {
+function buildPrompt(data) {
     return `[{{user}} INTERNAL STATE FOR THIS CHAT]
-Feelings: ${d.feelings || 'not specified'}
-Hidden thoughts: ${d.thoughts || 'not specified'}
-Goals: ${d.goals || 'not specified'}
-Desires: ${d.desires || 'not specified'}
-Secrets: ${d.secrets || 'not specified'}
-Relationship to {{char}}: ${d.relationship || 'not specified'}
-Notes: ${d.notes || 'not specified'}
-Trust: ${d.trust}/100
-Tension: ${d.tension}/100
-Affection: ${d.affection}/100
-Desire: ${d.desire}/100
-[Use as private context for {{user}}. Do not quote directly.]`;
-  }
+Feelings: ${data.feelings || 'not specified'}
+Hidden thoughts: ${data.thoughts || 'not specified'}
+Goals: ${data.goals || 'not specified'}
+Desires: ${data.desires || 'not specified'}
+Secrets: ${data.secrets || 'not specified'}
+Relationship to {{char}}: ${data.relationship || 'not specified'}
+Notes: ${data.notes || 'not specified'}
+Trust toward {{char}}: ${data.trust}/100
+Tension: ${data.tension}/100
+Affection toward {{char}}: ${data.affection}/100
+Desire level: ${data.desire}/100
+[Instruction: Use this as private context for {{user}}. Do not quote this block directly.]`;
+}
 
-  function updatePreview() {
-    const d = data();
-    ['trust','tension','affection','desire'].forEach(k => {
-      const span = id('usp_' + k + '_val_v22');
-      const input = id('usp_' + k + '_v22');
-      if (span && input) span.textContent = input.value;
-    });
-    const p = id('usp_preview_v22');
-    if (p) p.textContent = block(d);
-    save(d);
-  }
-
-  function apply(d) {
+function setValues(data) {
     const map = {
-      feelings: 'usp_feelings_v22',
-      thoughts: 'usp_thoughts_v22',
-      goals: 'usp_goals_v22',
-      desires: 'usp_desires_v22',
-      secrets: 'usp_secrets_v22',
-      relationship: 'usp_relationship_v22',
-      notes: 'usp_notes_v22',
-      trust: 'usp_trust_v22',
-      tension: 'usp_tension_v22',
-      affection: 'usp_affection_v22',
-      desire: 'usp_desire_v22',
+        feelings: 'usd3_feelings',
+        thoughts: 'usd3_thoughts',
+        goals: 'usd3_goals',
+        desires: 'usd3_desires',
+        secrets: 'usd3_secrets',
+        relationship: 'usd3_relationship',
+        notes: 'usd3_notes',
+        trust: 'usd3_trust',
+        tension: 'usd3_tension',
+        affection: 'usd3_affection',
+        desire: 'usd3_desire',
     };
-    Object.entries(map).forEach(([k, elid]) => {
-      const el = id(elid);
-      if (el) el.value = d[k] || (el.type === 'range' ? '50' : '');
-    });
+
+    for (const [key, id] of Object.entries(map)) {
+        const el = $(id);
+        if (!el) continue;
+        el.value = data[key] || (el.type === 'range' ? '50' : '');
+    }
+
     updatePreview();
-  }
+}
 
-  function insertNow() {
-    const box = document.querySelector('#send_textarea, textarea[name="send_textarea"], textarea');
-    if (!box) {
-      alert('Text input not found');
-      return;
-    }
-    const text = block(data());
-    box.value = box.value ? text + '\\n\\n' + box.value : text;
-    box.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+function updatePreview() {
+    const data = getData();
+    const sliders = {
+        trust: 'usd3_trust_val',
+        tension: 'usd3_tension_val',
+        affection: 'usd3_affection_val',
+        desire: 'usd3_desire_val',
+    };
 
-  function render() {
-    if (!id('usp_button_v22')) {
-      const btn = document.createElement('button');
-      btn.id = 'usp_button_v22';
-      btn.textContent = '💜';
-      btn.onclick = () => {
-        apply(load());
-        id('usp_panel_v22')?.classList.add('open');
-      };
-      document.body.appendChild(btn);
+    for (const [key, id] of Object.entries(sliders)) {
+        const span = $(id);
+        if (span) span.textContent = data[key];
     }
 
-    if (!id('usp_panel_v22')) {
-      const panel = document.createElement('div');
-      panel.id = 'usp_panel_v22';
-      panel.innerHTML = `
-        <div class="usp_head_v22">
-          <h3>💜 {{user}} State</h3>
-          <button id="usp_close_v22">Close</button>
-        </div>
-        <p>Saved separately for this chat.</p>
+    const preview = $('usd3_preview');
+    if (preview) preview.textContent = buildPrompt(data);
 
-        <label>Feelings / Чувства</label><textarea id="usp_feelings_v22"></textarea>
-        <label>Hidden thoughts / Скрытые мысли</label><textarea id="usp_thoughts_v22"></textarea>
-        <label>Goals / Цели</label><textarea id="usp_goals_v22"></textarea>
-        <label>Desires / Желания</label><textarea id="usp_desires_v22"></textarea>
-        <label>Secrets / Секреты</label><textarea id="usp_secrets_v22"></textarea>
-        <label>Relationship to {{char}} / Отношение к {{char}}</label><textarea id="usp_relationship_v22"></textarea>
-        <label>Notes / Заметки</label><textarea id="usp_notes_v22"></textarea>
+    saveState(data);
+}
 
-        <div class="usp_row_v22">Trust: <span id="usp_trust_val_v22">50</span><input id="usp_trust_v22" type="range" min="0" max="100" value="50"></div>
-        <div class="usp_row_v22">Tension: <span id="usp_tension_val_v22">50</span><input id="usp_tension_v22" type="range" min="0" max="100" value="50"></div>
-        <div class="usp_row_v22">Affection: <span id="usp_affection_val_v22">50</span><input id="usp_affection_v22" type="range" min="0" max="100" value="50"></div>
-        <div class="usp_row_v22">Desire: <span id="usp_desire_val_v22">50</span><input id="usp_desire_v22" type="range" min="0" max="100" value="50"></div>
+function addTextArea(panel, id, label) {
+    const wrap = make('div', { class: 'usd3_field' });
+    wrap.appendChild(make('label', {}, label));
+    const area = make('textarea', { id });
+    area.addEventListener('input', updatePreview);
+    wrap.appendChild(area);
+    panel.appendChild(wrap);
+}
 
-        <button id="usp_save_v22">Save</button>
-        <button id="usp_insert_v22">Insert now</button>
-        <div id="usp_preview_v22" class="usp_preview_v22"></div>
-      `;
-      document.body.appendChild(panel);
+function addSlider(panel, id, label, valId) {
+    const wrap = make('div', { class: 'usd3_field' });
+    const lab = make('label', { class: 'usd3_slider_label' });
+    lab.appendChild(make('span', {}, label));
+    lab.appendChild(make('span', { id: valId }, '50'));
+    wrap.appendChild(lab);
+    const input = make('input', { id, type: 'range', min: '0', max: '100', value: '50' });
+    input.addEventListener('input', updatePreview);
+    wrap.appendChild(input);
+    panel.appendChild(wrap);
+}
 
-      id('usp_close_v22').onclick = () => panel.classList.remove('open');
-      id('usp_save_v22').onclick = () => {
-        save(data());
-        alert('{{user}} state saved');
-      };
-      id('usp_insert_v22').onclick = insertNow;
-
-      panel.querySelectorAll('textarea,input').forEach(el => {
-        el.addEventListener('input', updatePreview);
-      });
-
-      apply(load());
+function insertIntoInput() {
+    const input = document.querySelector('#send_textarea') || document.querySelector('textarea');
+    if (!input) {
+        alert('SillyTavern text input not found');
+        return;
     }
-  }
 
-  function boot() {
-    try { render(); } catch (e) { console.error('[User State Drawer v2.2] render failed', e); }
-  }
+    const prompt = buildPrompt(getData());
+    input.value = input.value ? `${prompt}\n\n${input.value}` : prompt;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
-  boot();
-  setTimeout(boot, 500);
-  setTimeout(boot, 1500);
-  setTimeout(boot, 3000);
-  setInterval(boot, 5000);
-})();
+function renderPanel() {
+    if ($('usd3_button') && $('usd3_panel')) return;
+
+    if (!$('usd3_button')) {
+        const btn = make('button', { id: 'usd3_button', title: '{{user}} State' }, '💜');
+        btn.addEventListener('click', () => {
+            setValues(loadState());
+            $('usd3_panel')?.classList.add('usd3_open');
+        });
+        document.body.appendChild(btn);
+        console.log('[User State Drawer v3] button created');
+    }
+
+    if (!$('usd3_panel')) {
+        const panel = make('div', { id: 'usd3_panel' });
+
+        const header = make('div', { class: 'usd3_header' });
+        header.appendChild(make('h3', {}, '💜 {{user}} State'));
+        const close = make('button', { id: 'usd3_close' }, 'Close');
+        close.addEventListener('click', () => panel.classList.remove('usd3_open'));
+        header.appendChild(close);
+        panel.appendChild(header);
+
+        panel.appendChild(make('div', { class: 'usd3_hint' }, 'Saved separately for the current chat. Fill this as your persona / {{user}} inner state.'));
+
+        addTextArea(panel, 'usd3_feelings', 'Feelings / Чувства');
+        addTextArea(panel, 'usd3_thoughts', 'Hidden thoughts / Скрытые мысли');
+        addTextArea(panel, 'usd3_goals', 'Goals / Цели');
+        addTextArea(panel, 'usd3_desires', 'Desires / Желания');
+        addTextArea(panel, 'usd3_secrets', 'Secrets / Секреты');
+        addTextArea(panel, 'usd3_relationship', 'Relationship to {{char}} / Отношение к {{char}}');
+        addTextArea(panel, 'usd3_notes', 'Notes / Заметки');
+
+        addSlider(panel, 'usd3_trust', 'Trust / Доверие', 'usd3_trust_val');
+        addSlider(panel, 'usd3_tension', 'Tension / Напряжение', 'usd3_tension_val');
+        addSlider(panel, 'usd3_affection', 'Affection / Привязанность', 'usd3_affection_val');
+        addSlider(panel, 'usd3_desire', 'Desire / Желание', 'usd3_desire_val');
+
+        const buttons = make('div', { class: 'usd3_buttons' });
+        const save = make('button', {}, 'Save');
+        save.addEventListener('click', () => {
+            saveState(getData());
+            if (window.toastr) toastr.success('{{user}} state saved');
+        });
+
+        const insert = make('button', {}, 'Insert now');
+        insert.addEventListener('click', insertIntoInput);
+
+        buttons.appendChild(save);
+        buttons.appendChild(insert);
+        panel.appendChild(buttons);
+
+        panel.appendChild(make('div', { id: 'usd3_preview' }));
+
+        document.body.appendChild(panel);
+        setValues(loadState());
+        console.log('[User State Drawer v3] panel created');
+    }
+}
+
+function boot() {
+    try {
+        renderPanel();
+    } catch (err) {
+        console.error('[User State Drawer v3] boot failed', err);
+    }
+}
+
+function installBootHooks() {
+    boot();
+    setTimeout(boot, 500);
+    setTimeout(boot, 1500);
+    setTimeout(boot, 3000);
+
+    try {
+        eventSource.on(event_types.APP_READY, boot);
+        eventSource.on(event_types.CHAT_CHANGED, () => setValues(loadState()));
+    } catch (err) {
+        console.warn('[User State Drawer v3] event hooks unavailable', err);
+    }
+
+    setInterval(boot, 5000);
+}
+
+installBootHooks();
