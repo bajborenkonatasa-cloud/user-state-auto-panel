@@ -1,105 +1,15 @@
-#usd3_button {
+#user_state_test_button {
   position: fixed !important;
-  left: 12px !important;
-  bottom: 82px !important;
+  left: 10px !important;
+  bottom: 110px !important;
   z-index: 2147483647 !important;
-  width: 54px !important;
-  height: 54px !important;
+  width: 70px !important;
+  height: 70px !important;
   border-radius: 50% !important;
-  border: 2px solid #ff8cff !important;
-  background: #5b1685 !important;
-  color: #fff !important;
-  font-size: 26px !important;
-  box-shadow: 0 0 20px rgba(255, 140, 255, .9) !important;
-}
-
-#usd3_panel {
-  position: fixed !important;
-  top: 0 !important;
-  right: -96vw !important;
-  width: 94vw !important;
-  max-width: 430px !important;
-  height: 100vh !important;
-  z-index: 2147483646 !important;
-  background: rgba(14, 10, 24, .985) !important;
-  color: #fff !important;
-  border-left: 2px solid #c06cff !important;
-  box-shadow: -10px 0 30px rgba(0,0,0,.65) !important;
-  transition: right .22s ease !important;
-  overflow-y: auto !important;
-  padding: 14px !important;
-  box-sizing: border-box !important;
-  font-size: 14px !important;
-}
-
-#usd3_panel.usd3_open {
-  right: 0 !important;
-}
-
-.usd3_header {
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  gap: 8px !important;
-  margin-bottom: 10px !important;
-}
-
-.usd3_header h3 {
-  margin: 0 !important;
-  font-size: 18px !important;
-}
-
-.usd3_hint {
-  opacity: .82 !important;
-  font-size: 12px !important;
-  margin: 6px 0 12px !important;
-}
-
-.usd3_field {
-  margin-bottom: 10px !important;
-}
-
-.usd3_field label {
-  display: block !important;
-  font-weight: 700 !important;
-  margin-bottom: 4px !important;
-}
-
-.usd3_field textarea {
-  width: 100% !important;
-  min-height: 58px !important;
-  box-sizing: border-box !important;
-  resize: vertical !important;
-  border-radius: 8px !important;
-}
-
-.usd3_slider_label {
-  display: flex !important;
-  justify-content: space-between !important;
-}
-
-.usd3_field input[type="range"] {
-  width: 100% !important;
-}
-
-.usd3_buttons {
-  display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
-  gap: 8px !important;
-  margin: 12px 0 !important;
-}
-
-.usd3_buttons button,
-#usd3_close {
-  min-height: 36px !important;
-  border-radius: 8px !important;
-}
-
-#usd3_preview {
-  white-space: pre-wrap !important;
-  border: 1px dashed #c06cff !important;
-  border-radius: 10px !important;
-  padding: 8px !important;
-  font-size: 12px !important;
-  opacity: .92 !important;
+  border: 3px solid #ffffff !important;
+  background: #b000ff !important;
+  color: #ffffff !important;
+  font-size: 30px !important;
+  font-weight: bold !important;
+  box-shadow: 0 0 25px #ff00ff !important;
 }
