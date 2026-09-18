@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.2] module loaded');
+console.log('[User Persona Studio v4.0.3] module loaded');
 
-const VERSION = '4.0.2';
+const VERSION = '4.0.3';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -66,7 +66,15 @@ function make(tag, attrs = {}, text = '') {
 }
 
 function ctx() { try { return getContext?.() || globalThis.SillyTavern?.getContext?.() || {}; } catch { return {}; } }
-function names() { const c = ctx(); return { userName:c.name1 || window.name1 || '{{user}}', charName:c.name2 || window.name2 || '{{char}}' }; }
+function names() {
+    const c = ctx();
+    const charId = c.characterId ?? window.this_chid;
+    const charFromContext = Array.isArray(c.characters) && charId != null ? c.characters[charId]?.name : '';
+    const charFromWindow = Array.isArray(window.characters) && charId != null ? window.characters[charId]?.name : '';
+    const rawChar = charFromContext || charFromWindow || c.character?.name || c.name2 || window.name2 || '{{char}}';
+    const charName = rawChar === 'SillyTavern System' ? (charFromContext || charFromWindow || '{{char}}') : rawChar;
+    return { userName:c.name1 || window.name1 || '{{user}}', charName };
+}
 function ids() {
     const c = ctx();
     return {
@@ -254,7 +262,17 @@ function renderWorldTab(){
 
 function renderShowTab(){
     const p=tabSection('show','🖼 ПОКАЗАТЬ ПЕРСОНАЖУ','Разовый визуальный референс: прикрепится к следующему обычному запросу. Дополнительного API-запроса нет.');
-    const c=cardBox('📸 Визуальная подсказка'); const file=make('input',{id:'ups_one_image',type:'file',accept:'image/*'}); file.addEventListener('change',handleOneShotImage); c.appendChild(file);
+    const c=cardBox('📸 Визуальная подсказка');
+
+    const picker=make('div',{class:'ups_picker'});
+    const file=make('input',{id:'ups_one_image',type:'file',accept:'image/*',style:'display:none'});
+    file.addEventListener('change',handleOneShotImage);
+    const pick=make('button',{type:'button',class:'ups_action ups_primary ups_gallery_btn'},'🖼 Выбрать изображение из галереи');
+    pick.addEventListener('click',()=>file.click());
+    picker.append(file,pick);
+    picker.appendChild(make('div',{class:'ups_sub'},'Картинка будет отправлена только вместе со следующим обычным сообщением. Потом разовая картинка очистится.'));
+    c.appendChild(picker);
+
     const preview=make('div',{id:'ups_one_image_preview',class:'ups_image_preview'}); c.appendChild(preview);
     field(c,'ups_one_caption','Подпись для модели','Например: это моя комната; {{char}} впервые её видит...','Это визуальный референс текущей сцены. Используй видимые детали изображения естественно и дай {{char}} правдоподобно отреагировать; не перечисляй всё механически.');
     const row=make('div',{class:'ups_buttons'}); const clear=make('button',{type:'button',class:'ups_action'},'🧹 Убрать картинку'); clear.addEventListener('click',clearOneShotImage); const save=make('button',{type:'button',class:'ups_action'},'💾 Сохранить как карточку'); save.addEventListener('click',saveOneShotAsCard); row.append(clear,save); c.appendChild(row); p.appendChild(c);
@@ -265,7 +283,8 @@ function renderDirectorTab(){
     const p=tabSection('director','🎬 РЕЖИССЁР','Никакого отдельного запроса: выбранная команда просто добавится к следующему ответу основной модели.');
     const c=cardBox('🎭 Жанр / настроение'); const grid=make('div',{class:'ups_preset_grid'}); for(const [k,v] of Object.entries(DIRECTOR_PRESETS)){const b=make('button',{type:'button','data-preset':k,class:'ups_preset'},`${v.icon} ${v.title}`); b.addEventListener('click',()=>selectDirectorPreset(k)); grid.appendChild(b);} c.appendChild(grid);
     const sel=make('input',{id:'ups_director_preset',type:'hidden'}); c.appendChild(sel);
-    field(c,'ups_director_custom','Своя режиссёрская команда','Оставь пустым, чтобы использовать выбранный пресет...','Не жди пассивно инициативы от {{user}}. Пусть {{char}} сам примет одно логичное решение или внесёт одно новое событие, которое двинет сцену вперёд. Не управляй {{user}}.');
+    c.appendChild(make('div',{class:'ups_director_hint'},'✨ Нажми жанр выше — его умный мини-промпт появится в поле ниже. Можешь оставить как есть или переписать своими словами.'));
+    field(c,'ups_director_custom','Режиссёрская команда','Нажми пресет выше или напиши свою команду вручную...','Не жди пассивно инициативы от {{user}}. Пусть {{char}} сам примет одно логичное решение или внесёт одно новое событие, которое двинет сцену вперёд. Не управляй {{user}}.');
     const mode=make('select',{id:'ups_director_mode'}); mode.innerHTML='<option value="once">⚡ Только следующий ответ</option><option value="always">📌 Держать активным</option>'; mode.addEventListener('change',saveAndRefresh); c.appendChild(mode); p.appendChild(c);
     const o=cardBox('💬 Разовая OOC-команда'); field(o,'ups_ooc_once','Следующий ответ','Например: пиши короче; не смягчай характер; пусть он сам начнёт разговор...','Для следующего ответа: сохраняй характер {{char}}, пиши компактно, проявляй инициативу и двигай сцену вперёд. Не управляй {{user}}.'); p.appendChild(o); return p;
 }
@@ -315,7 +334,25 @@ function clearOneShotImage(){runtimeOneShotImage=null;const f=el('ups_one_image'
 async function saveOneShotAsCard(){if(!runtimeOneShotImage){window.toastr?.warning?.('Сначала выбери изображение');return;}const caption=clean(el('ups_one_caption')?.value);const title=prompt('Название карточки:','Визуальный референс');if(title===null)return;const cat=prompt('Категория: location / home / outfit / appearance / vehicle / item / custom','custom')||'custom';const key=uuid();await imageStoreSet(key,runtimeOneShotImage.data);const cards=loadCards();cards.push({id:uuid(),title:clean(title)||'Визуальный референс',text:caption,category:CARD_CATEGORIES[cat]?cat:'custom',scope:'chat',scopeId:ids().chatId,sendMode:'off',imageKey:key,smartPrompt:SMART_CARD_PROMPTS[cat]||SMART_CARD_PROMPTS.custom,customPrompt:'',useCustomPrompt:false,createdAt:Date.now()});saveCards(cards);renderCards();window.toastr?.success?.('Изображение сохранено как карточка');}
 function renderShowQueue(){const q=el('ups_show_queue');if(!q)return;const cards=relevantCards().filter(c=>c.imageKey);q.innerHTML=`<div class="ups_queue_title">📤 На следующий запрос</div><div>${runtimeOneShotImage?'🖼 Разовая картинка':''}${cards.length?`${runtimeOneShotImage?' · ':''}${cards.length} сохранённых визуалов`:''}${!runtimeOneShotImage&&!cards.length?'Пока ничего':''}</div><div class="ups_sub">Максимум ${MAX_IMAGES_PER_REQUEST} изображения за один запрос.</div>`;}
 
-function selectDirectorPreset(k){const d=getData();d.directorPreset=d.directorPreset===k?'':k; if(el('ups_director_preset'))el('ups_director_preset').value=d.directorPreset;saveState(d);updatePresetButtons(d.directorPreset);updateInjection(d);renderStatus();updatePreview(d);}
+function selectDirectorPreset(k){
+    const d=getData();
+    const same=d.directorPreset===k;
+    if(same){
+        d.directorPreset='';
+        d.directorCustom='';
+    }else{
+        d.directorPreset=k;
+        d.directorCustom=DIRECTOR_PRESETS[k]?.prompt || '';
+    }
+    if(el('ups_director_preset')) el('ups_director_preset').value=d.directorPreset;
+    if(el('ups_director_custom')) el('ups_director_custom').value=d.directorCustom;
+    saveState(d);
+    updatePresetButtons(d.directorPreset);
+    updateInjection(d);
+    renderStatus();
+    updatePreview(d);
+    window.toastr?.info?.(same ? 'Режиссёрский пресет выключен' : `Мини-промпт «${DIRECTOR_PRESETS[k]?.title||''}» вставлен — можешь отредактировать его вручную.`);
+}
 function updatePresetButtons(k){document.querySelectorAll('#'+PANEL_ID+' .ups_preset').forEach(b=>b.classList.toggle('ups_selected',b.dataset.preset===k));}
 
 async function attachImagesInterceptor(chat,_contextSize,_abort,type){
@@ -410,7 +447,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.2] init error:',err);
+        console.error('[User Persona Studio v4.0.3] init error:',err);
         return false;
     }
 }
