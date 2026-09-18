@@ -32,3 +32,15 @@
   color:#f5e8bd!important;font-size:11px!important;line-height:1.5!important
 }
 #ups_full_profile{min-height:240px!important}
+
+.ups_save_now{
+  margin-left:auto!important;
+  width:46px!important;height:46px!important;min-width:46px!important;
+  border-radius:14px!important;
+  border:1px solid rgba(255,213,106,.34)!important;
+  background:linear-gradient(135deg,rgba(185,120,255,.28),rgba(87,228,223,.15))!important;
+  color:#ffe7a6!important;font-size:20px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  box-shadow:0 0 18px rgba(185,120,255,.14)!important;
+}
+.ups_save_now:active{transform:scale(.96)!important}

@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.4] module loaded');
+console.log('[User Persona Studio v4.0.5] module loaded');
 
-const VERSION = '4.0.4';
+const VERSION = '4.0.5';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -151,8 +151,29 @@ function migrateOld() {
     } catch (e) { console.warn('[User Persona Studio] migration failed', e); }
 }
 
-function loadState() { migrateOld(); try { return { ...defaults(), ...JSON.parse(localStorage.getItem(chatKey()) || '{}') }; } catch { return defaults(); } }
-function saveState(data) { localStorage.setItem(chatKey(), JSON.stringify(data)); }
+function profileKey(){
+    const {userName}=names();
+    return PREFIX + 'profile_' + String(userName || 'default').toLowerCase();
+}
+function loadState() {
+    migrateOld();
+    try {
+        const chatData = JSON.parse(localStorage.getItem(chatKey()) || '{}');
+        const profileData = JSON.parse(localStorage.getItem(profileKey()) || '{}');
+        return { ...defaults(), ...chatData, fullProfile: profileData.fullProfile ?? chatData.fullProfile ?? '' };
+    } catch {
+        return defaults();
+    }
+}
+function saveState(data) {
+    try {
+        localStorage.setItem(chatKey(), JSON.stringify(data));
+        localStorage.setItem(profileKey(), JSON.stringify({ fullProfile: data.fullProfile || '' }));
+    } catch (e) {
+        console.error('[User Persona Studio] save failed', e);
+        window.toastr?.error?.('Не удалось сохранить данные User Persona Studio.');
+    }
+}
 function loadCards() { try { const v=JSON.parse(localStorage.getItem(CARDS_KEY)||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
 function saveCards(cards) { localStorage.setItem(CARDS_KEY, JSON.stringify(cards)); }
 function uuid() { return (crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`); }
@@ -243,6 +264,21 @@ function updateInjection(data=loadState()) {
     catch(e){ console.error('[User Persona Studio] injection error',e); }
 }
 
+function saveAllNow(){
+    try{
+        const d=getData();
+        saveState(d);
+        updateInjection(d);
+        updatePreview(d);
+        renderStatus();
+        renderProfileStatus(d);
+        window.toastr?.success?.('💾 Всё сохранено. Записи останутся после перезапуска SillyTavern.');
+    }catch(e){
+        console.error('[User Persona Studio] manual save failed',e);
+        window.toastr?.error?.('Не удалось сохранить данные.');
+    }
+}
+
 function saveAndRefresh() { const d=getData(); saveState(d); updateInjection(d); updatePreview(d); renderStatus(); }
 function el(id){return document.getElementById(id);}
 
@@ -269,7 +305,11 @@ function renderPanel(){
     const {userName}=names();
     const panel=make('div',{id:PANEL_ID});
     const hero=make('div',{class:'ups_hero'}); hero.innerHTML=`<div class="ups_brandline">USER PERSONA STUDIO · v${VERSION}</div><div class="ups_title">💜 ${userName}</div><div class="ups_tagline">Твоя сторона истории: чувства, мир, визуалы и режиссура.</div>`;
-    const close=make('button',{class:'ups_close',type:'button'},'×'); close.addEventListener('click',()=>panel.classList.remove('ups_open')); hero.appendChild(close); panel.appendChild(hero);
+    const saveNow=make('button',{class:'ups_save_now',type:'button',title:'Сохранить всё'},'💾');
+    saveNow.addEventListener('click',saveAllNow);
+    const close=make('button',{class:'ups_close',type:'button'},'×');
+    close.addEventListener('click',()=>{ try{saveState(getData());}catch{} panel.classList.remove('ups_open'); });
+    hero.append(saveNow,close); panel.appendChild(hero);
     const tabs=make('div',{class:'ups_tabs'});
     const tabDefs=[['state','💜','Сейчас'],['profile','👤','Профиль'],['relations','💕','Отношения'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
     for(const [key,ic,txt] of tabDefs){const b=make('button',{type:'button','data-tab':key},`${ic} ${txt}`); b.addEventListener('click',()=>showTab(key)); tabs.appendChild(b);} panel.appendChild(tabs);
@@ -421,7 +461,7 @@ function renderPreviewTab(){
 function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='preview')updatePreview(loadState());}
 
 function setValues(d){
-    const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption'};
+    const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption',fullProfile:'ups_full_profile'};
     for(const [k,id] of Object.entries(idsMap)){const x=el(id);if(x)x.value=d[k]??'';}
     for(const k of ['autoInject','includeState','includeRelation','includeScene','includeModelNotes','showPreview']){const x=el('ups_'+k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())); if(x)x.checked=!!d[k];}
     for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}
@@ -576,7 +616,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.4] init error:',err);
+        console.error('[User Persona Studio v4.0.5] init error:',err);
         return false;
     }
 }
@@ -587,8 +627,17 @@ function keepTopButtonAlive(){
     globalThis.__ups4_top_observer=obs;
 }
 
+function bindSaveGuards(){
+    if(globalThis.__ups4_save_guards) return;
+    const persist=()=>{ try{ if(el(PANEL_ID)) saveState(getData()); }catch(e){ console.warn('[User Persona Studio] background save failed',e); } };
+    window.addEventListener('beforeunload',persist);
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') persist(); });
+    globalThis.__ups4_save_guards=true;
+}
+
 jQuery(document).ready(()=>{
     init();
+    bindSaveGuards();
     keepTopButtonAlive();
     [350,800,1600,3000,5000].forEach(ms=>setTimeout(()=>{ renderTopButton(); if(!initialized) init(); },ms));
 });
