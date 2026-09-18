@@ -1,11 +1,12 @@
 {
-  "display_name": "User State Drawer",
+  "display_name": "User Persona Studio",
   "loading_order": 99,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "Natalie + ChatGPT",
-  "version": "3.3.0",
-  "homePage": "https://github.com/bajborenkonatasa-cloud/user-state-auto-panel"
+  "version": "4.0.0",
+  "homePage": "https://github.com/bajborenkonatasa-cloud/user-state-auto-panel",
+  "generate_interceptor": "userPersonaStudioGenerationInterceptor"
 }
