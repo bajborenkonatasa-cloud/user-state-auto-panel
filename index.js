@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.1] module loaded');
+console.log('[User Persona Studio v4.0.2] module loaded');
 
-const VERSION = '4.0.1';
+const VERSION = '4.0.2';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -223,7 +223,7 @@ function renderPanel(){
     for(const [key,ic,txt] of tabDefs){const b=make('button',{type:'button','data-tab':key},`${ic} ${txt}`); b.addEventListener('click',()=>showTab(key)); tabs.appendChild(b);} panel.appendChild(tabs);
     const body=make('div',{class:'ups_body'}); panel.appendChild(body);
     body.append(renderStateTab(),renderRelationsTab(),renderWorldTab(),renderShowTab(),renderDirectorTab(),renderNotesTab(),renderPreviewTab());
-    document.body.appendChild(panel); showTab(activeTab); setValues(loadState()); renderCards(); renderShowQueue(); renderPreview(loadState()); renderStatus();
+    document.body.appendChild(panel); showTab(activeTab); setValues(loadState()); renderCards(); renderShowQueue(); updatePreview(loadState()); renderStatus();
 }
 function tabSection(id,title,desc=''){const d=make('section',{id:'ups_tab_'+id,class:'ups_tabpage'}); d.appendChild(make('div',{class:'ups_section_kicker'},title)); if(desc)d.appendChild(make('div',{class:'ups_intro'},desc)); return d;}
 function cardBox(title,sub=''){const c=make('div',{class:'ups_card'}); const h=make('div',{class:'ups_card_head'}); h.appendChild(make('div',{class:'ups_card_title'},title)); if(sub)h.appendChild(make('div',{class:'ups_card_sub'},sub)); c.appendChild(h); return c;}
@@ -284,14 +284,14 @@ function renderPreviewTab(){
     const back=cardBox('💾 Резервная копия'); const row=make('div',{class:'ups_buttons'}); const ex=make('button',{type:'button',class:'ups_action'},'⬇️ Экспорт JSON'); ex.addEventListener('click',exportBackup); const im=make('button',{type:'button',class:'ups_action'},'⬆️ Импорт JSON'); im.addEventListener('click',()=>el('ups_import_file').click()); const fi=make('input',{id:'ups_import_file',type:'file',accept:'application/json',style:'display:none'}); fi.addEventListener('change',importBackup); row.append(ex,im,fi); back.appendChild(row); p.appendChild(back); return p;
 }
 
-function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='preview')renderPreview(loadState());}
+function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='preview')updatePreview(loadState());}
 
 function setValues(d){
     const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption'};
     for(const [k,id] of Object.entries(idsMap)){const x=el(id);if(x)x.value=d[k]??'';}
     for(const k of ['autoInject','includeState','includeRelation','includeScene','includeModelNotes','showPreview']){const x=el('ups_'+k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())); if(x)x.checked=!!d[k];}
     for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}
-    renderNpcList(d); updatePresetButtons(d.directorPreset); renderPreview(d); renderStatus();
+    renderNpcList(d); updatePresetButtons(d.directorPreset); updatePreview(d); renderStatus();
 }
 
 function updatePreview(d=getData()){const p=el('ups_preview');if(p)p.textContent=buildPrompt(d)||'Расширение выключено или активных данных нет.'; const w=el('ups_preview_wrap'); if(w)w.style.display=d.showPreview?'block':'none'; for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}}
@@ -379,10 +379,14 @@ function togglePanel(){
     if(!p)return;
     if(p.classList.contains('ups_open')) p.classList.remove('ups_open');
     else{
-        try{
-            setValues(loadState()); renderOneShotPreview(); renderCards(); renderShowQueue(); renderPreview(loadState()); renderStatus();
-            p.classList.add('ups_open');
-        }catch(err){ console.error('[User Persona Studio] open panel error',err); }
+        // Open first so a secondary render error can never make the heart look "dead".
+        p.classList.add('ups_open');
+        try{ setValues(loadState()); }catch(err){ console.error('[User Persona Studio] setValues error',err); }
+        try{ renderOneShotPreview(); }catch(err){ console.error('[User Persona Studio] image preview error',err); }
+        try{ renderCards(); }catch(err){ console.error('[User Persona Studio] cards render error',err); }
+        try{ renderShowQueue(); }catch(err){ console.error('[User Persona Studio] queue render error',err); }
+        try{ updatePreview(loadState()); }catch(err){ console.error('[User Persona Studio] prompt preview error',err); }
+        try{ renderStatus(); }catch(err){ console.error('[User Persona Studio] status render error',err); }
     }
 }
 function refreshForChat(){setTimeout(()=>{if(el(PANEL_ID)){setValues(loadState());renderCards();renderShowQueue();}updateInjection(loadState());},250);}
@@ -406,7 +410,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.1] init error:',err);
+        console.error('[User Persona Studio v4.0.2] init error:',err);
         return false;
     }
 }
