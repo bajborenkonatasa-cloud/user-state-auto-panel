@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.5] module loaded');
+console.log('[User Persona Studio v4.0.6] module loaded');
 
-const VERSION = '4.0.5';
+const VERSION = '4.0.6';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -305,11 +305,12 @@ function renderPanel(){
     const {userName}=names();
     const panel=make('div',{id:PANEL_ID});
     const hero=make('div',{class:'ups_hero'}); hero.innerHTML=`<div class="ups_brandline">USER PERSONA STUDIO · v${VERSION}</div><div class="ups_title">💜 ${userName}</div><div class="ups_tagline">Твоя сторона истории: чувства, мир, визуалы и режиссура.</div>`;
-    const saveNow=make('button',{class:'ups_save_now',type:'button',title:'Сохранить всё'},'💾');
+    const actions=make('div',{class:'ups_hero_actions'});
+    const saveNow=make('button',{class:'ups_save_now',type:'button',title:'Сохранить всё','aria-label':'Сохранить всё'},'💾');
     saveNow.addEventListener('click',saveAllNow);
-    const close=make('button',{class:'ups_close',type:'button'},'×');
+    const close=make('button',{class:'ups_close',type:'button','aria-label':'Закрыть'},'×');
     close.addEventListener('click',()=>{ try{saveState(getData());}catch{} panel.classList.remove('ups_open'); });
-    hero.append(saveNow,close); panel.appendChild(hero);
+    actions.append(saveNow,close); hero.appendChild(actions); panel.appendChild(hero);
     const tabs=make('div',{class:'ups_tabs'});
     const tabDefs=[['state','💜','Сейчас'],['profile','👤','Профиль'],['relations','💕','Отношения'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
     for(const [key,ic,txt] of tabDefs){const b=make('button',{type:'button','data-tab':key},`${ic} ${txt}`); b.addEventListener('click',()=>showTab(key)); tabs.appendChild(b);} panel.appendChild(tabs);
@@ -616,7 +617,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.5] init error:',err);
+        console.error('[User Persona Studio v4.0.6] init error:',err);
         return false;
     }
 }

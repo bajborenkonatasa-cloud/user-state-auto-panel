@@ -44,3 +44,66 @@
   box-shadow:0 0 18px rgba(185,120,255,.14)!important;
 }
 .ups_save_now:active{transform:scale(.96)!important}
+
+/* v4.0.6 compact mobile header fix */
+.ups_hero{
+  position:relative!important;
+  min-height:0!important;
+  padding:20px 112px 18px 18px!important;
+  display:block!important;
+}
+.ups_hero_actions{
+  position:absolute!important;
+  top:14px!important;
+  right:14px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  z-index:3!important;
+}
+.ups_save_now,
+.ups_close{
+  position:static!important;
+  margin:0!important;
+  flex:0 0 auto!important;
+}
+.ups_save_now{
+  width:42px!important;
+  height:42px!important;
+  min-width:42px!important;
+  min-height:42px!important;
+  border-radius:13px!important;
+  font-size:18px!important;
+}
+.ups_close{
+  width:46px!important;
+  height:46px!important;
+  min-width:46px!important;
+  min-height:46px!important;
+}
+.ups_brandline{padding-right:0!important}
+.ups_tagline{max-width:100%!important}
+
+@media (max-width:560px){
+  .ups_hero{
+    padding:16px 104px 15px 16px!important;
+  }
+  .ups_hero_actions{
+    top:12px!important;
+    right:12px!important;
+    gap:6px!important;
+  }
+  .ups_save_now{
+    width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;
+    font-size:16px!important;
+  }
+  .ups_close{
+    width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;
+  }
+}
+
+/* Make bottom content reachable even on Android browsers with dynamic bars */
+#user-persona-studio-panel .ups_body{
+  padding-bottom:calc(92px + env(safe-area-inset-bottom, 0px))!important;
+  overscroll-behavior:contain!important;
+}
