@@ -12,3 +12,23 @@
 .ups_picker{margin:4px 0 12px!important;padding:11px!important;border:1px dashed rgba(87,228,223,.30)!important;border-radius:14px!important;background:linear-gradient(135deg,rgba(87,228,223,.055),rgba(185,120,255,.055))!important}
 .ups_gallery_btn{width:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;min-height:46px!important;font-weight:900!important;font-size:14px!important;box-shadow:0 0 18px rgba(87,228,223,.08)!important}
 .ups_director_hint{margin:10px 0!important;padding:9px 10px!important;border-radius:12px!important;border:1px solid rgba(255,213,106,.22)!important;background:rgba(255,213,106,.055)!important;color:#ffe6a2!important;font-size:11px!important;line-height:1.4!important}
+
+.ups_profile_explain{
+  margin:0 0 12px!important;padding:11px 12px!important;
+  border-radius:14px!important;border:1px solid rgba(87,228,223,.24)!important;
+  background:linear-gradient(135deg,rgba(87,228,223,.07),rgba(185,120,255,.06))!important;
+  color:rgba(244,239,255,.88)!important;font-size:12px!important;line-height:1.5!important
+}
+.ups_profile_controls{display:flex!important;gap:8px!important;margin-top:10px!important;flex-wrap:wrap!important}
+.ups_profile_controls .ups_action{flex:1 1 240px!important;min-height:45px!important}
+.ups_profile_status{
+  margin-top:10px!important;padding:9px 11px!important;border-radius:12px!important;
+  background:rgba(0,0,0,.16)!important;border:1px solid rgba(255,255,255,.08)!important;
+  font-size:12px!important;line-height:1.45!important
+}
+.ups_profile_tip{
+  margin-top:12px!important;padding:10px 11px!important;border-radius:12px!important;
+  border:1px solid rgba(255,213,106,.20)!important;background:rgba(255,213,106,.045)!important;
+  color:#f5e8bd!important;font-size:11px!important;line-height:1.5!important
+}
+#ups_full_profile{min-height:240px!important}

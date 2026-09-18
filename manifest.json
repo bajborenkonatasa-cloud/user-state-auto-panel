@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "Natalie + ChatGPT",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "homePage": "https://github.com/bajborenkonatasa-cloud/user-state-auto-panel",
   "generate_interceptor": "userPersonaStudioGenerationInterceptor"
 }

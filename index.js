@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.3] module loaded');
+console.log('[User Persona Studio v4.0.4] module loaded');
 
-const VERSION = '4.0.3';
+const VERSION = '4.0.4';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -68,12 +68,51 @@ function make(tag, attrs = {}, text = '') {
 function ctx() { try { return getContext?.() || globalThis.SillyTavern?.getContext?.() || {}; } catch { return {}; } }
 function names() {
     const c = ctx();
-    const charId = c.characterId ?? window.this_chid;
-    const charFromContext = Array.isArray(c.characters) && charId != null ? c.characters[charId]?.name : '';
-    const charFromWindow = Array.isArray(window.characters) && charId != null ? window.characters[charId]?.name : '';
-    const rawChar = charFromContext || charFromWindow || c.character?.name || c.name2 || window.name2 || '{{char}}';
-    const charName = rawChar === 'SillyTavern System' ? (charFromContext || charFromWindow || '{{char}}') : rawChar;
-    return { userName:c.name1 || window.name1 || '{{user}}', charName };
+    const charId = c.characterId ?? c.character_id ?? globalThis.this_chid ?? window.this_chid;
+
+    const byIndex = (collection, id) => {
+        if (!collection || id === undefined || id === null) return '';
+        const item = collection?.[id] ?? collection?.[String(id)];
+        return clean(item?.name || item?.display_name || item?.character_name || '');
+    };
+
+    // 1) Character card collections exposed by SillyTavern.
+    const fromCollection =
+        byIndex(c.characters, charId) ||
+        byIndex(globalThis.characters, charId) ||
+        byIndex(window.characters, charId);
+
+    // 2) Explicit active character fields used by different ST builds.
+    const explicit = clean(
+        c.character?.name ||
+        c.characterName ||
+        c.character_name ||
+        c.activeCharacter?.name ||
+        c.active_character?.name ||
+        ''
+    );
+
+    // 3) Last real assistant speaker in this chat. This is a very reliable
+    // fallback on mobile when name2 temporarily equals "SillyTavern System".
+    let fromChat = '';
+    const chat = Array.isArray(c.chat) ? c.chat : (Array.isArray(globalThis.chat) ? globalThis.chat : []);
+    for (let i = chat.length - 1; i >= 0; i--) {
+        const m = chat[i];
+        const n = clean(m?.name || m?.character_name || m?.speaker || '');
+        if (m && !m.is_user && n && n !== 'SillyTavern System' && n !== 'System') {
+            fromChat = n;
+            break;
+        }
+    }
+
+    // 4) Legacy names only as a last resort.
+    let legacy = clean(c.name2 || globalThis.name2 || window.name2 || '');
+    if (legacy === 'SillyTavern System' || legacy === 'System') legacy = '';
+
+    const charName = fromCollection || explicit || fromChat || legacy || '{{char}}';
+    const userName = clean(c.name1 || globalThis.name1 || window.name1 || '') || '{{user}}';
+
+    return { userName, charName };
 }
 function ids() {
     const c = ctx();
@@ -90,6 +129,7 @@ function defaults() {
         feelings:'', thoughts:'', secrets:'', goals:'', desires:'', motives:'', avoid:'',
         relationship:'', trust:'50', tension:'50', affection:'50', desire:'50', jealousy:'0', resentment:'0',
         npcs:[], location:'', appearanceNow:'', sceneGoal:'', modelNotes:'', privateNotes:'',
+        fullProfile:'', fullProfileOnce:false,
         directorPreset:'', directorCustom:'', directorMode:'once', oocOnce:'', oneShotCaption:'',
         autoInject:true, includeState:true, includeRelation:true, includeScene:true, includeModelNotes:false,
         showPreview:false
@@ -149,6 +189,7 @@ function getData() {
         feelings:val('ups_feelings'), thoughts:val('ups_thoughts'), secrets:val('ups_secrets'), goals:val('ups_goals'), desires:val('ups_desires'), motives:val('ups_motives'), avoid:val('ups_avoid'),
         relationship:val('ups_relationship'), trust:val('ups_trust','50'), tension:val('ups_tension','50'), affection:val('ups_affection','50'), desire:val('ups_desire','50'), jealousy:val('ups_jealousy','0'), resentment:val('ups_resentment','0'),
         location:val('ups_location'), appearanceNow:val('ups_appearance'), sceneGoal:val('ups_scene_goal'), modelNotes:val('ups_model_notes'), privateNotes:val('ups_private_notes'),
+        fullProfile:val('ups_full_profile'), fullProfileOnce:existing.fullProfileOnce === true,
         directorPreset:val('ups_director_preset'), directorCustom:val('ups_director_custom'), directorMode:val('ups_director_mode','once'), oocOnce:val('ups_ooc_once'), oneShotCaption:val('ups_one_caption'),
         autoInject:chk('ups_auto_inject'), includeState:chk('ups_include_state'), includeRelation:chk('ups_include_relation'), includeScene:chk('ups_include_scene'), includeModelNotes:chk('ups_include_model_notes'), showPreview:chk('ups_show_preview')
     };
@@ -172,6 +213,9 @@ function buildPrompt(data=loadState()) {
     if (!data.autoInject) return '';
     const {userName,charName}=names(); const out=[];
     out.push(`[Private user-side guidance for ${userName}. This block guides the roleplay; do not quote or expose it.]`);
+    if(data.fullProfileOnce && clean(data.fullProfile)){
+        out.push(`[ONE-TIME FULL USER PERSONA PROFILE — reference only for this reply]\n${clean(data.fullProfile)}\nTreat this as background canon for ${userName}. Do not recite it, do not reveal private facts to ${charName} unless they are already known in-story, and do not write ${userName}'s actions/dialogue for them.`);
+    }
     if(data.includeState){
         const items=[line('Feelings',data.feelings),line('Hidden thoughts',data.thoughts),line('Secrets',data.secrets),line('Current goals',data.goals),line('Desires',data.desires),line('Motives',data.motives),line('Boundaries / does not want',data.avoid)].filter(Boolean);
         if(items.length) out.push('[USER INNER STATE]\n'+items.join('\n'));
@@ -227,10 +271,10 @@ function renderPanel(){
     const hero=make('div',{class:'ups_hero'}); hero.innerHTML=`<div class="ups_brandline">USER PERSONA STUDIO · v${VERSION}</div><div class="ups_title">💜 ${userName}</div><div class="ups_tagline">Твоя сторона истории: чувства, мир, визуалы и режиссура.</div>`;
     const close=make('button',{class:'ups_close',type:'button'},'×'); close.addEventListener('click',()=>panel.classList.remove('ups_open')); hero.appendChild(close); panel.appendChild(hero);
     const tabs=make('div',{class:'ups_tabs'});
-    const tabDefs=[['state','💜','Сейчас'],['relations','💕','Отношения'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
+    const tabDefs=[['state','💜','Сейчас'],['profile','👤','Профиль'],['relations','💕','Отношения'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
     for(const [key,ic,txt] of tabDefs){const b=make('button',{type:'button','data-tab':key},`${ic} ${txt}`); b.addEventListener('click',()=>showTab(key)); tabs.appendChild(b);} panel.appendChild(tabs);
     const body=make('div',{class:'ups_body'}); panel.appendChild(body);
-    body.append(renderStateTab(),renderRelationsTab(),renderWorldTab(),renderShowTab(),renderDirectorTab(),renderNotesTab(),renderPreviewTab());
+    body.append(renderStateTab(),renderProfileTab(),renderRelationsTab(),renderWorldTab(),renderShowTab(),renderDirectorTab(),renderNotesTab(),renderPreviewTab());
     document.body.appendChild(panel); showTab(activeTab); setValues(loadState()); renderCards(); renderShowQueue(); updatePreview(loadState()); renderStatus();
 }
 function tabSection(id,title,desc=''){const d=make('section',{id:'ups_tab_'+id,class:'ups_tabpage'}); d.appendChild(make('div',{class:'ups_section_kicker'},title)); if(desc)d.appendChild(make('div',{class:'ups_intro'},desc)); return d;}
@@ -243,9 +287,80 @@ function renderStateTab(){
     const c=cardBox('🎭 Текущая сцена'); field(c,'ups_location','Где мы сейчас','Парк, море, спальня, магическая башня...','Это текущая локация сцены. Используй её детали естественно и сохраняй пространственную последовательность.'); field(c,'ups_appearance','Как {{user}} выглядит сейчас','Одежда, волосы, состояние...','Сохраняй этот текущий образ {{user}} в сцене, пока он не изменится.'); field(c,'ups_scene_goal','Что я хочу от сцены','Например: хочу, чтобы он сам проявил инициативу...','Учитывай это как режиссёрское пожелание, но не заставляй {{user}} совершать действия или произносить реплики.'); p.appendChild(c); return p;
 }
 
+
+function renderProfileTab(){
+    const {userName}=names();
+    const p=tabSection(
+        'profile',
+        '👤 ПОЛНЫЙ ПРОФИЛЬ {{user}}',
+        'Сюда можно вставить длинное описание персоны из SillyTavern. Само по себе оно НЕ отправляется модели. По кнопке ниже оно попадёт только в следующий обычный запрос.'
+    );
+
+    const info=cardBox('🪪 Большая карточка персоны');
+    info.appendChild(make('div',{class:'ups_profile_explain'},
+        `Для экономии токенов: короткое ядро ${userName} лучше оставить в стандартном Persona Description SillyTavern, а длинные ~1000+ токенов хранить здесь и подмешивать только когда это действительно нужно.`));
+
+    field(
+        info,
+        'ups_full_profile',
+        'Полное описание',
+        'Вставь сюда длинную карточку {{user}} из SillyTavern...',
+        'Вставь полное описание {{user}}: внешность, характер, привычки, важные факты и предпочтения. Это справочная информация для модели; персонажи не должны автоматически знать скрытые или личные факты.'
+    );
+
+    const controls=make('div',{class:'ups_profile_controls'});
+    const once=make('button',{id:'ups_profile_once_btn',type:'button',class:'ups_action ups_primary'},'⚡ Отправить профиль только в следующий ответ');
+    once.addEventListener('click',toggleFullProfileOnce);
+    controls.appendChild(once);
+
+    const status=make('div',{id:'ups_profile_status',class:'ups_profile_status'},'⚫ Сейчас профиль не отправляется.');
+    info.append(controls,status);
+
+    const tip=make('div',{class:'ups_profile_tip'});
+    tip.innerHTML='<b>Как пользоваться:</b> новый чат → при желании нажми кнопку ⚡ → напиши первое обычное сообщение персонажу → Send. Уйдёт один запрос. После ответа полный профиль автоматически выключится, но текст останется сохранён здесь.';
+    info.appendChild(tip);
+
+    p.appendChild(info);
+    return p;
+}
+
+function toggleFullProfileOnce(){
+    const d=getData();
+    if(!clean(d.fullProfile)){
+        window.toastr?.warning?.('Сначала вставь полное описание персоны.');
+        return;
+    }
+    d.fullProfileOnce=!d.fullProfileOnce;
+    saveState(d);
+    updateInjection(d);
+    updatePreview(d);
+    renderProfileStatus(d);
+    renderStatus();
+    window.toastr?.info?.(d.fullProfileOnce
+        ? 'Полный профиль попадёт только в следующий обычный запрос.'
+        : 'Разовая отправка полного профиля отменена.');
+}
+
+function renderProfileStatus(d=loadState()){
+    const s=el('ups_profile_status');
+    const b=el('ups_profile_once_btn');
+    const active=!!d.fullProfileOnce && !!clean(d.fullProfile);
+    if(s)s.textContent=active
+        ? '🟢 Готово: полный профиль уйдёт в следующий ответ и затем сам выключится.'
+        : '⚫ Сейчас полный профиль не отправляется.';
+    if(b){
+        b.textContent=active ? '✖ Отменить разовую отправку профиля' : '⚡ Отправить профиль только в следующий ответ';
+        b.classList.toggle('ups_selected',active);
+    }
+}
+
 function renderRelationsTab(){
-    const {charName,userName}=names(); const p=tabSection('relations','💕 ОТНОШЕНИЯ','Основная карточка автоматически относится к текущему {{char}}. NPC можно добавить отдельно.');
-    const a=cardBox(`💞 ${userName} → ${charName}`); field(a,'ups_relationship','Отношение',`Как ${userName} относится к ${charName}...`,`Опиши отношение ${userName} к ${charName} в 1–3 предложениях: близость, сомнения, ожидания и текущая динамика.`); slider(a,'ups_trust','Доверие','ups_trust_val'); slider(a,'ups_tension','Напряжение','ups_tension_val'); slider(a,'ups_affection','Привязанность','ups_affection_val'); slider(a,'ups_desire','Желание','ups_desire_val'); slider(a,'ups_jealousy','Ревность','ups_jealousy_val','0'); slider(a,'ups_resentment','Обида','ups_resentment_val','0'); p.appendChild(a);
+    const {charName,userName}=names(); const p=tabSection('relations','💕 ОТНОШЕНИЯ','Основная карточка автоматически относится к текущему персонажу. NPC можно добавить отдельно.');
+    const a=cardBox(`💞 ${userName} → ${charName}`);
+    const rt=a.querySelector('.ups_card_title'); if(rt)rt.id='ups_relation_card_title';
+    const relField=field(a,'ups_relationship','Отношение',`Как ${userName} относится к ${charName}...`,`Опиши отношение ${userName} к ${charName} в 1–3 предложениях: близость, сомнения, ожидания и текущая динамика.`);
+    if(relField)relField.dataset.dynamicRelation='1';
+    slider(a,'ups_trust','Доверие','ups_trust_val'); slider(a,'ups_tension','Напряжение','ups_tension_val'); slider(a,'ups_affection','Привязанность','ups_affection_val'); slider(a,'ups_desire','Желание','ups_desire_val'); slider(a,'ups_jealousy','Ревность','ups_jealousy_val','0'); slider(a,'ups_resentment','Обида','ups_resentment_val','0'); p.appendChild(a);
     const np=cardBox('👥 NPC','Дополнительные отношения для этой ветки.'); const list=make('div',{id:'ups_npc_list'}); np.appendChild(list); const add=make('button',{type:'button',class:'ups_action'},'＋ Добавить NPC'); add.addEventListener('click',addNpc); np.appendChild(add); p.appendChild(np); return p;
 }
 
@@ -310,11 +425,24 @@ function setValues(d){
     for(const [k,id] of Object.entries(idsMap)){const x=el(id);if(x)x.value=d[k]??'';}
     for(const k of ['autoInject','includeState','includeRelation','includeScene','includeModelNotes','showPreview']){const x=el('ups_'+k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())); if(x)x.checked=!!d[k];}
     for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}
+    refreshDynamicNames();
+    renderProfileStatus(d);
     renderNpcList(d); updatePresetButtons(d.directorPreset); updatePreview(d); renderStatus();
 }
 
+
+function refreshDynamicNames(){
+    const {userName,charName}=names();
+    const title=el('ups_relation_card_title');
+    if(title) title.textContent=`💞 ${userName} → ${charName}`;
+    const rel=el('ups_relationship');
+    if(rel) rel.placeholder=`Как ${userName} относится к ${charName}...`;
+    const hero=el(PANEL_ID)?.querySelector('.ups_title');
+    if(hero) hero.textContent=`💜 ${userName}`;
+}
+
 function updatePreview(d=getData()){const p=el('ups_preview');if(p)p.textContent=buildPrompt(d)||'Расширение выключено или активных данных нет.'; const w=el('ups_preview_wrap'); if(w)w.style.display=d.showPreview?'block':'none'; for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}}
-function renderStatus(){const d=loadState(), cards=relevantCards(); const one=runtimeOneShotImage?1:0; const c=el('ups_status'); if(c)c.innerHTML=`${pill(d.autoInject?'🟢 Включено':'⚫ Выключено').outerHTML} ${pill(`🗂 ${cards.length} карточек`).outerHTML} ${pill(`🖼 ${cards.filter(x=>x.imageKey).length+one} изображ.`).outerHTML} ${pill(d.directorPreset||clean(d.directorCustom)?'🎬 режиссёр активен':'🎬 без режиссуры').outerHTML}`;}
+function renderStatus(){const d=loadState(), cards=relevantCards(); const one=runtimeOneShotImage?1:0; const c=el('ups_status'); if(c)c.innerHTML=`${pill(d.autoInject?'🟢 Включено':'⚫ Выключено').outerHTML} ${pill(d.fullProfileOnce&&clean(d.fullProfile)?'👤 профиль: один раз':'👤 профиль: скрыт').outerHTML} ${pill(`🗂 ${cards.length} карточек`).outerHTML} ${pill(`🖼 ${cards.filter(x=>x.imageKey).length+one} изображ.`).outerHTML} ${pill(d.directorPreset||clean(d.directorCustom)?'🎬 режиссёр активен':'🎬 без режиссуры').outerHTML}`;}
 
 function addNpc(){const d=getData(); d.npcs=Array.isArray(d.npcs)?d.npcs:[]; d.npcs.push({id:uuid(),name:'',relation:'',trust:'50'}); saveState(d); renderNpcList(d); updateInjection(d);}
 function renderNpcList(d=loadState()){const list=el('ups_npc_list');if(!list)return;list.innerHTML=''; for(const n of d.npcs||[]){const box=make('div',{class:'ups_npc'}); const name=make('input',{placeholder:'Имя NPC',value:n.name||''}); const rel=make('textarea',{placeholder:'Отношение / что важно...',value:n.relation||''}); rel.value=n.relation||''; const trust=make('input',{type:'range',min:'0',max:'100',value:n.trust||'50'}); const del=make('button',{type:'button',class:'ups_iconbtn'},'🗑'); const save=()=>{const st=loadState();const x=(st.npcs||[]).find(x=>x.id===n.id);if(x){x.name=name.value;x.relation=rel.value;x.trust=trust.value;saveState(st);updateInjection(st);renderStatus();}}; name.addEventListener('input',save);rel.addEventListener('input',save);trust.addEventListener('input',save);del.addEventListener('click',()=>{const st=loadState();st.npcs=(st.npcs||[]).filter(x=>x.id!==n.id);saveState(st);renderNpcList(st);updateInjection(st);}); box.append(name,rel,trust,del);list.appendChild(box);}}
@@ -373,6 +501,7 @@ globalThis.userPersonaStudioGenerationInterceptor = attachImagesInterceptor;
 
 function clearOneShotAfterReply(){
     const d=loadState(); let changed=false;
+    if(d.fullProfileOnce){d.fullProfileOnce=false;changed=true;}
     if(d.directorMode==='once' && (d.directorPreset||clean(d.directorCustom))){d.directorPreset='';d.directorCustom='';changed=true;}
     if(clean(d.oocOnce)){d.oocOnce='';changed=true;}
     const cards=loadCards();let cardChanged=false;for(const c of cards){if(c.sendMode==='once' && currentScopedCards().some(x=>x.id===c.id)){c.sendMode='off';cardChanged=true;}}
@@ -426,7 +555,7 @@ function togglePanel(){
         try{ renderStatus(); }catch(err){ console.error('[User Persona Studio] status render error',err); }
     }
 }
-function refreshForChat(){setTimeout(()=>{if(el(PANEL_ID)){setValues(loadState());renderCards();renderShowQueue();}updateInjection(loadState());},250);}
+function refreshForChat(){setTimeout(()=>{if(el(PANEL_ID)){refreshDynamicNames();setValues(loadState());renderCards();renderShowQueue();renderProfileStatus(loadState());}updateInjection(loadState());},350);}
 
 function bindEventsOnce(){
     if(globalThis.__ups4_events_bound) return;
@@ -447,7 +576,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.3] init error:',err);
+        console.error('[User Persona Studio v4.0.4] init error:',err);
         return false;
     }
 }
