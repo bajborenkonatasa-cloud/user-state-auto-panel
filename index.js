@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0] module loaded');
+console.log('[User Persona Studio v4.0.1] module loaded');
 
-const VERSION = '4.0.0';
+const VERSION = '4.0.1';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -348,10 +348,77 @@ async function exportBackup(){
 }
 async function importBackup(e){const f=e.target.files?.[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!x||!Array.isArray(x.cards))throw new Error('bad');if(x.chatState)saveState({...defaults(),...x.chatState});saveCards(x.cards);for(const [k,v] of Object.entries(x.images||{}))await imageStoreSet(k,v);setValues(loadState());renderCards();updateInjection(loadState());window.toastr?.success?.('Резервная копия восстановлена');}catch{window.toastr?.error?.('Не удалось импортировать JSON');}finally{e.target.value='';}}
 
-function renderTopButton(){if(el(TOP_BUTTON_ID))return;const holder=document.querySelector('#top-settings-holder')||document.querySelector('#top-bar')||document.querySelector('#extensionsMenuButton')?.parentElement||document.body;const b=make('div',{id:TOP_BUTTON_ID,class:'drawer',title:'User Persona Studio'},'💜');b.addEventListener('click',togglePanel);holder.appendChild(b);}
-function togglePanel(){const p=el(PANEL_ID);if(!p)return;if(p.classList.contains('ups_open'))p.classList.remove('ups_open');else{setValues(loadState());renderOneShotPreview();renderCards();renderShowQueue();p.classList.add('ups_open');}}
+function findTopHolder(){
+    return document.querySelector('#top-settings-holder')
+        || document.querySelector('#top-bar')
+        || document.querySelector('#extensionsMenuButton')?.parentElement
+        || document.querySelector('#top-bar-holder')
+        || document.body;
+}
+function renderTopButton(){
+    try{
+        document.querySelectorAll(`#${TOP_BUTTON_ID}`).forEach((node,i)=>{ if(i>0) node.remove(); });
+        if(el(TOP_BUTTON_ID)) return true;
+        const holder=findTopHolder();
+        if(!holder) return false;
+        const b=make('div',{id:TOP_BUTTON_ID,class:'drawer',title:'User Persona Studio','aria-label':'User Persona Studio'},'💜');
+        b.addEventListener('click',togglePanel);
+        holder.appendChild(b);
+        return true;
+    }catch(err){
+        console.error('[User Persona Studio] top button error',err);
+        return false;
+    }
+}
+function togglePanel(){
+    let p=el(PANEL_ID);
+    if(!p){
+        try{ renderPanel(); p=el(PANEL_ID); }
+        catch(err){ console.error('[User Persona Studio] panel recovery error',err); window.toastr?.error?.('User Persona Studio не открылось. Посмотри ошибку в консоли.'); return; }
+    }
+    if(!p)return;
+    if(p.classList.contains('ups_open')) p.classList.remove('ups_open');
+    else{
+        try{
+            setValues(loadState()); renderOneShotPreview(); renderCards(); renderShowQueue(); renderPreview(loadState()); renderStatus();
+            p.classList.add('ups_open');
+        }catch(err){ console.error('[User Persona Studio] open panel error',err); }
+    }
+}
 function refreshForChat(){setTimeout(()=>{if(el(PANEL_ID)){setValues(loadState());renderCards();renderShowQueue();}updateInjection(loadState());},250);}
 
-function init(){if(initialized)return;initialized=true;renderPanel();renderTopButton();updateInjection(loadState());eventSource.on(event_types.CHAT_CHANGED,refreshForChat);eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));eventSource.on(event_types.MESSAGE_RECEIVED,()=>setTimeout(clearOneShotAfterReply,50));}
+function bindEventsOnce(){
+    if(globalThis.__ups4_events_bound) return;
+    globalThis.__ups4_events_bound=true;
+    eventSource.on(event_types.CHAT_CHANGED,refreshForChat);
+    eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));
+    eventSource.on(event_types.MESSAGE_RECEIVED,()=>setTimeout(clearOneShotAfterReply,50));
+}
+function init(){
+    // Важно: кнопку рисуем первой. Даже если одна из новых вкладок упадёт,
+    // пользователь всё равно увидит 💜 и повторный запуск сможет восстановиться.
+    renderTopButton();
+    try{
+        renderPanel();
+        updateInjection(loadState());
+        bindEventsOnce();
+        initialized=true;
+        return true;
+    }catch(err){
+        initialized=false;
+        console.error('[User Persona Studio v4.0.1] init error:',err);
+        return false;
+    }
+}
+function keepTopButtonAlive(){
+    if(globalThis.__ups4_top_observer) return;
+    const obs=new MutationObserver(()=>{ if(!el(TOP_BUTTON_ID)) renderTopButton(); });
+    obs.observe(document.documentElement,{childList:true,subtree:true});
+    globalThis.__ups4_top_observer=obs;
+}
 
-jQuery(document).ready(()=>{init();setTimeout(renderTopButton,700);setTimeout(renderTopButton,1800);});
+jQuery(document).ready(()=>{
+    init();
+    keepTopButtonAlive();
+    [350,800,1600,3000,5000].forEach(ms=>setTimeout(()=>{ renderTopButton(); if(!initialized) init(); },ms));
+});
