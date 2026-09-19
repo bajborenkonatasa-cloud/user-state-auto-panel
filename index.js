@@ -1,9 +1,9 @@
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.0.6] module loaded');
+console.log('[User Persona Studio v4.0.7] module loaded');
 
-const VERSION = '4.0.6';
+const VERSION = '4.0.7';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -30,6 +30,8 @@ const DIRECTOR_PRESETS = {
     blessing: { icon:'🎁', title:'Удача', prompt:'Introduce a believable positive turn, opportunity or small stroke of luck that opens a new direction for the scene.' },
     momentum: { icon:'⚡', title:'Двинуть сюжет', prompt:'Do not wait passively for {{user}}. In this response, let {{char}} make a concrete decision or introduce one logical new event that moves the story forward. Do not control {{user}}.' },
     slowburn: { icon:'🧩', title:'Slow burn', prompt:'Slow the pace slightly and focus on gradual emotional development, subtext and small meaningful actions. Do not resolve the tension too quickly.' },
+    adventure: { icon:'🧭', title:'Приключение', prompt:'Introduce one believable discovery, obstacle, destination or opportunity that gives the characters something concrete to do. Keep the event connected to the established world and let {{char}} or NPCs take initiative without controlling {{user}}.' },
+    twist: { icon:'🎲', title:'Поворот', prompt:'Add one surprising but logical development that changes the direction or meaning of the scene. Foreshadow it through existing facts when possible; avoid random chaos and do not control {{user}}.' },
 };
 
 const CARD_CATEGORIES = {
@@ -131,6 +133,12 @@ function defaults() {
         npcs:[], location:'', appearanceNow:'', sceneGoal:'', modelNotes:'', privateNotes:'',
         fullProfile:'', fullProfileOnce:false,
         directorPreset:'', directorCustom:'', directorMode:'once', oocOnce:'', oneShotCaption:'',
+        styleMaxLength:false, styleMaxTokens:'2500',
+        styleNoStretch:false, styleNoStretchPrompt:'Keep the reply focused. Do not pad the scene with repetitive atmosphere, introspection or filler. Each paragraph should add a reaction, action, information or meaningful progression.',
+        styleUserAgency:false, styleUserAgencyPrompt:'STRICT USER AGENCY: Never write {{user}}\'s actions, dialogue, thoughts, emotions, decisions or consent. You control only {{char}}, NPCs and the world. If {{user}} is silent, show only how {{char}}/NPCs react to that silence.',
+        styleNpcAgency:false, styleNpcAgencyPrompt:'ACTIVE NPC AGENCY: {{char}} and NPCs have independent goals, opinions and lives. They may initiate dialogue, ask questions, disagree, act on their own plans, and interact with each other. Keep each NPC distinct and consistent.',
+        styleAdvancePlot:false, styleAdvancePlotPrompt:'If the scene becomes passive or stalled, move it forward with one concrete, logical action, decision, complication, clue or event from {{char}}, an NPC or the world. Do not force {{user}} to act.',
+        styleAntiEcho:false, styleAntiEchoPrompt:'ANTI-ECHO: Continue from the exact point where {{user}} ended. Do not restate, paraphrase or replay {{user}}\'s actions, dialogue, thoughts or scene description. Refer back only briefly when necessary for a natural reaction.',
         autoInject:true, includeState:true, includeRelation:true, includeScene:true, includeModelNotes:false,
         showPreview:false
     };
@@ -212,6 +220,12 @@ function getData() {
         location:val('ups_location'), appearanceNow:val('ups_appearance'), sceneGoal:val('ups_scene_goal'), modelNotes:val('ups_model_notes'), privateNotes:val('ups_private_notes'),
         fullProfile:val('ups_full_profile'), fullProfileOnce:existing.fullProfileOnce === true,
         directorPreset:val('ups_director_preset'), directorCustom:val('ups_director_custom'), directorMode:val('ups_director_mode','once'), oocOnce:val('ups_ooc_once'), oneShotCaption:val('ups_one_caption'),
+        styleMaxLength:chk('ups_style_max_length'), styleMaxTokens:val('ups_style_max_tokens','2500'),
+        styleNoStretch:chk('ups_style_no_stretch'), styleNoStretchPrompt:val('ups_style_no_stretch_prompt',existing.styleNoStretchPrompt),
+        styleUserAgency:chk('ups_style_user_agency'), styleUserAgencyPrompt:val('ups_style_user_agency_prompt',existing.styleUserAgencyPrompt),
+        styleNpcAgency:chk('ups_style_npc_agency'), styleNpcAgencyPrompt:val('ups_style_npc_agency_prompt',existing.styleNpcAgencyPrompt),
+        styleAdvancePlot:chk('ups_style_advance_plot'), styleAdvancePlotPrompt:val('ups_style_advance_plot_prompt',existing.styleAdvancePlotPrompt),
+        styleAntiEcho:chk('ups_style_anti_echo'), styleAntiEchoPrompt:val('ups_style_anti_echo_prompt',existing.styleAntiEchoPrompt),
         autoInject:chk('ups_auto_inject'), includeState:chk('ups_include_state'), includeRelation:chk('ups_include_relation'), includeScene:chk('ups_include_scene'), includeModelNotes:chk('ups_include_model_notes'), showPreview:chk('ups_show_preview')
     };
 }
@@ -254,8 +268,20 @@ function buildPrompt(data=loadState()) {
     if(runtimeOneShotImage && clean(data.oneShotCaption)) out.push('[ONE-TIME VISUAL REFERENCE]\n'+data.oneShotCaption.trim()+'\nUse the attached image as a visual reference and let {{char}} react naturally when relevant.');
     const director=selectedDirectorPrompt(data); if(director) out.push('[DIRECTOR NOTE — do this in the next reply]\n'+director);
     if(data.includeModelNotes && clean(data.modelNotes)) out.push('[USER NOTES FOR MODEL]\n'+data.modelNotes.trim());
+
+    const style=[];
+    if(data.styleMaxLength){
+        const n=Math.max(200,Math.min(20000,parseInt(data.styleMaxTokens||'2500',10)||2500));
+        style.push(`RESPONSE LENGTH: Keep the complete reply at or below approximately ${n} tokens. Prefer a naturally shorter answer over padding.`);
+    }
+    if(data.styleNoStretch && clean(data.styleNoStretchPrompt)) style.push(macro(data.styleNoStretchPrompt));
+    if(data.styleUserAgency && clean(data.styleUserAgencyPrompt)) style.push(macro(data.styleUserAgencyPrompt));
+    if(data.styleNpcAgency && clean(data.styleNpcAgencyPrompt)) style.push(macro(data.styleNpcAgencyPrompt));
+    if(data.styleAdvancePlot && clean(data.styleAdvancePlotPrompt)) style.push(macro(data.styleAdvancePlotPrompt));
+    if(data.styleAntiEcho && clean(data.styleAntiEchoPrompt)) style.push(macro(data.styleAntiEchoPrompt));
+    if(style.length) out.push('[OPTIONAL RESPONSE STYLE — active rules only]\n'+style.map((x,i)=>`${i+1}. ${x}`).join('\n'));
+
     if(clean(data.oocOnce)) out.push('[ONE-TIME OOC REQUEST]\n'+data.oocOnce.trim());
-    out.push(`[Safety of agency: never write ${userName}'s choices, dialogue, thoughts or consent for them unless the user explicitly asks. Hidden thoughts/secrets are private knowledge; ${charName} may infer only from observable behavior unless revealed in-story.]`);
     return out.filter(Boolean).join('\n\n');
 }
 
@@ -287,9 +313,28 @@ function helperButton(targetId,text){
     b.addEventListener('click',()=>{ const t=el(targetId); if(!t)return; t.value=macro(text); t.dispatchEvent(new Event('input',{bubbles:true})); }); return b;
 }
 
+function clearFieldButton(targetId){
+    const b=make('button',{type:'button',class:'ups_clear_field',title:'Очистить поле','aria-label':'Очистить поле'},'🗑 Очистить');
+    b.addEventListener('click',()=>{
+        const t=el(targetId); if(!t || !clean(t.value)) return;
+        t.value='';
+        t.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    return b;
+}
+
 function field(parent,id,label,placeholder='',helper=''){
-    const w=make('div',{class:'ups_field'}); const head=make('div',{class:'ups_labelrow'}); head.appendChild(make('label',{for:id},label)); if(helper)head.appendChild(helperButton(id,helper)); w.appendChild(head);
-    const a=make('textarea',{id,placeholder}); a.addEventListener('input',saveAndRefresh); w.appendChild(a); parent.appendChild(w); return a;
+    const w=make('div',{class:'ups_field'});
+    const head=make('div',{class:'ups_labelrow'});
+    head.appendChild(make('label',{for:id},label));
+    const actions=make('div',{class:'ups_field_actions'});
+    if(helper) actions.appendChild(helperButton(id,helper));
+    actions.appendChild(clearFieldButton(id));
+    head.appendChild(actions);
+    w.appendChild(head);
+    const a=make('textarea',{id,placeholder});
+    a.addEventListener('input',saveAndRefresh);
+    w.appendChild(a); parent.appendChild(w); return a;
 }
 function slider(parent,id,label,valId,def='50'){
     const w=make('div',{class:'ups_field'}),h=make('div',{class:'ups_slider_label'}); h.append(make('span',{},label),make('span',{id:valId,class:'ups_slider_value'},def)); w.appendChild(h);
@@ -435,6 +480,64 @@ function renderShowTab(){
     p.appendChild(make('div',{id:'ups_show_queue',class:'ups_queue'})); return p;
 }
 
+
+function styleRule(parent, checkId, title, promptId, promptText, sub=''){
+    const box=make('div',{class:'ups_style_rule'});
+    const top=make('div',{class:'ups_style_rule_top'});
+    const check=make('input',{id:checkId,type:'checkbox'});
+    check.addEventListener('change',saveAndRefresh);
+    const labelWrap=make('div',{class:'ups_style_rule_label'});
+    labelWrap.appendChild(make('label',{for:checkId},title));
+    if(sub) labelWrap.appendChild(make('div',{class:'ups_sub'},sub));
+    top.append(check,labelWrap);
+    box.appendChild(top);
+
+    const ta=make('textarea',{id:promptId,class:'ups_style_prompt'});
+    ta.value=promptText;
+    ta.addEventListener('input',saveAndRefresh);
+    const row=make('div',{class:'ups_style_prompt_actions'});
+    const reset=make('button',{type:'button',class:'ups_helper'},'✨ Вернуть мой промт');
+    reset.addEventListener('click',()=>{
+        ta.value=macro(promptText);
+        ta.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    const clear=clearFieldButton(promptId);
+    row.append(reset,clear);
+    box.append(ta,row);
+    parent.appendChild(box);
+    return box;
+}
+
+function renderResponseStyleCard(){
+    const d=defaults();
+    const c=cardBox('⚙️ Стиль ответа','Галочка включена — только это правило отправляется модели. Галочка снята — правило не тратит токены.');
+
+    const length=make('div',{class:'ups_style_rule ups_style_length'});
+    const top=make('div',{class:'ups_style_rule_top'});
+    const chk=make('input',{id:'ups_style_max_length',type:'checkbox'});
+    chk.addEventListener('change',saveAndRefresh);
+    const lw=make('div',{class:'ups_style_rule_label'});
+    lw.appendChild(make('label',{for:'ups_style_max_length'},'✂️ Ограничить длину ответа'));
+    lw.appendChild(make('div',{class:'ups_sub'},'Это инструкция модели, а не технический API max_tokens. Для жёсткого потолка лимит нужно также поставить у провайдера.'));
+    top.append(chk,lw);
+    length.appendChild(top);
+    const line=make('div',{class:'ups_token_line'});
+    line.appendChild(make('span',{},'Максимум примерно'));
+    const num=make('input',{id:'ups_style_max_tokens',type:'number',min:'200',max:'20000',step:'100',value:'2500'});
+    num.addEventListener('input',saveAndRefresh);
+    line.append(num,make('span',{},'токенов'));
+    length.appendChild(line);
+    c.appendChild(length);
+
+    styleRule(c,'ups_style_no_stretch','⏩ Не растягивать сцену','ups_style_no_stretch_prompt',d.styleNoStretchPrompt,'Меньше воды, повторной атмосферы и бесконечной внутренней речи.');
+    styleRule(c,'ups_style_user_agency','🙋 Не писать и не думать за {{user}}','ups_style_user_agency_prompt',d.styleUserAgencyPrompt,'Модель управляет только {{char}}, NPC и миром.');
+    styleRule(c,'ups_style_npc_agency','🤖 NPC и {{char}} проявляют инициативу','ups_style_npc_agency_prompt',d.styleNpcAgencyPrompt,'NPC разговаривают, действуют и взаимодействуют друг с другом, а не стоят декорациями.');
+    styleRule(c,'ups_style_advance_plot','🚀 Продвигать сюжет, если сцена застопорилась','ups_style_advance_plot_prompt',d.styleAdvancePlotPrompt,'Одно логичное действие, событие, решение или осложнение вместо ожидания твоего пинка.');
+    styleRule(c,'ups_style_anti_echo','🔇 Анти-эхо','ups_style_anti_echo_prompt',d.styleAntiEchoPrompt,'Не пересказывать твой предыдущий пост и не повторять твою реплику другими словами.');
+
+    return c;
+}
+
 function renderDirectorTab(){
     const p=tabSection('director','🎬 РЕЖИССЁР','Никакого отдельного запроса: выбранная команда просто добавится к следующему ответу основной модели.');
     const c=cardBox('🎭 Жанр / настроение'); const grid=make('div',{class:'ups_preset_grid'}); for(const [k,v] of Object.entries(DIRECTOR_PRESETS)){const b=make('button',{type:'button','data-preset':k,class:'ups_preset'},`${v.icon} ${v.title}`); b.addEventListener('click',()=>selectDirectorPreset(k)); grid.appendChild(b);} c.appendChild(grid);
@@ -442,6 +545,7 @@ function renderDirectorTab(){
     c.appendChild(make('div',{class:'ups_director_hint'},'✨ Нажми жанр выше — его умный мини-промпт появится в поле ниже. Можешь оставить как есть или переписать своими словами.'));
     field(c,'ups_director_custom','Режиссёрская команда','Нажми пресет выше или напиши свою команду вручную...','Не жди пассивно инициативы от {{user}}. Пусть {{char}} сам примет одно логичное решение или внесёт одно новое событие, которое двинет сцену вперёд. Не управляй {{user}}.');
     const mode=make('select',{id:'ups_director_mode'}); mode.innerHTML='<option value="once">⚡ Только следующий ответ</option><option value="always">📌 Держать активным</option>'; mode.addEventListener('change',saveAndRefresh); c.appendChild(mode); p.appendChild(c);
+    p.appendChild(renderResponseStyleCard());
     const o=cardBox('💬 Разовая OOC-команда'); field(o,'ups_ooc_once','Следующий ответ','Например: пиши короче; не смягчай характер; пусть он сам начнёт разговор...','Для следующего ответа: сохраняй характер {{char}}, пиши компактно, проявляй инициативу и двигай сцену вперёд. Не управляй {{user}}.'); p.appendChild(o); return p;
 }
 
@@ -462,9 +566,10 @@ function renderPreviewTab(){
 function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='preview')updatePreview(loadState());}
 
 function setValues(d){
-    const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption',fullProfile:'ups_full_profile'};
+    const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption',fullProfile:'ups_full_profile',
+        styleMaxTokens:'ups_style_max_tokens',styleNoStretchPrompt:'ups_style_no_stretch_prompt',styleUserAgencyPrompt:'ups_style_user_agency_prompt',styleNpcAgencyPrompt:'ups_style_npc_agency_prompt',styleAdvancePlotPrompt:'ups_style_advance_plot_prompt',styleAntiEchoPrompt:'ups_style_anti_echo_prompt'};
     for(const [k,id] of Object.entries(idsMap)){const x=el(id);if(x)x.value=d[k]??'';}
-    for(const k of ['autoInject','includeState','includeRelation','includeScene','includeModelNotes','showPreview']){const x=el('ups_'+k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())); if(x)x.checked=!!d[k];}
+    for(const k of ['autoInject','includeState','includeRelation','includeScene','includeModelNotes','showPreview','styleMaxLength','styleNoStretch','styleUserAgency','styleNpcAgency','styleAdvancePlot','styleAntiEcho']){const x=el('ups_'+k.replace(/[A-Z]/g,m=>'_'+m.toLowerCase())); if(x)x.checked=!!d[k];}
     for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}
     refreshDynamicNames();
     renderProfileStatus(d);
@@ -483,7 +588,7 @@ function refreshDynamicNames(){
 }
 
 function updatePreview(d=getData()){const p=el('ups_preview');if(p)p.textContent=buildPrompt(d)||'Расширение выключено или активных данных нет.'; const w=el('ups_preview_wrap'); if(w)w.style.display=d.showPreview?'block':'none'; for(const k of ['trust','tension','affection','desire','jealousy','resentment']){const s=el('ups_'+k+'_val');if(s)s.textContent=d[k]??'0';}}
-function renderStatus(){const d=loadState(), cards=relevantCards(); const one=runtimeOneShotImage?1:0; const c=el('ups_status'); if(c)c.innerHTML=`${pill(d.autoInject?'🟢 Включено':'⚫ Выключено').outerHTML} ${pill(d.fullProfileOnce&&clean(d.fullProfile)?'👤 профиль: один раз':'👤 профиль: скрыт').outerHTML} ${pill(`🗂 ${cards.length} карточек`).outerHTML} ${pill(`🖼 ${cards.filter(x=>x.imageKey).length+one} изображ.`).outerHTML} ${pill(d.directorPreset||clean(d.directorCustom)?'🎬 режиссёр активен':'🎬 без режиссуры').outerHTML}`;}
+function renderStatus(){const d=loadState(), cards=relevantCards(); const one=runtimeOneShotImage?1:0; const styleCount=['styleMaxLength','styleNoStretch','styleUserAgency','styleNpcAgency','styleAdvancePlot','styleAntiEcho'].filter(k=>d[k]).length; const c=el('ups_status'); if(c)c.innerHTML=`${pill(d.autoInject?'🟢 Включено':'⚫ Выключено').outerHTML} ${pill(d.fullProfileOnce&&clean(d.fullProfile)?'👤 профиль: один раз':'👤 профиль: скрыт').outerHTML} ${pill(`⚙️ правил: ${styleCount}`).outerHTML} ${pill(`🗂 ${cards.length} карточек`).outerHTML} ${pill(`🖼 ${cards.filter(x=>x.imageKey).length+one} изображ.`).outerHTML} ${pill(d.directorPreset||clean(d.directorCustom)?'🎬 режиссёр активен':'🎬 без режиссуры').outerHTML}`;}
 
 function addNpc(){const d=getData(); d.npcs=Array.isArray(d.npcs)?d.npcs:[]; d.npcs.push({id:uuid(),name:'',relation:'',trust:'50'}); saveState(d); renderNpcList(d); updateInjection(d);}
 function renderNpcList(d=loadState()){const list=el('ups_npc_list');if(!list)return;list.innerHTML=''; for(const n of d.npcs||[]){const box=make('div',{class:'ups_npc'}); const name=make('input',{placeholder:'Имя NPC',value:n.name||''}); const rel=make('textarea',{placeholder:'Отношение / что важно...',value:n.relation||''}); rel.value=n.relation||''; const trust=make('input',{type:'range',min:'0',max:'100',value:n.trust||'50'}); const del=make('button',{type:'button',class:'ups_iconbtn'},'🗑'); const save=()=>{const st=loadState();const x=(st.npcs||[]).find(x=>x.id===n.id);if(x){x.name=name.value;x.relation=rel.value;x.trust=trust.value;saveState(st);updateInjection(st);renderStatus();}}; name.addEventListener('input',save);rel.addEventListener('input',save);trust.addEventListener('input',save);del.addEventListener('click',()=>{const st=loadState();st.npcs=(st.npcs||[]).filter(x=>x.id!==n.id);saveState(st);renderNpcList(st);updateInjection(st);}); box.append(name,rel,trust,del);list.appendChild(box);}}
@@ -617,7 +722,7 @@ function init(){
         return true;
     }catch(err){
         initialized=false;
-        console.error('[User Persona Studio v4.0.6] init error:',err);
+        console.error('[User Persona Studio v4.0.7] init error:',err);
         return false;
     }
 }

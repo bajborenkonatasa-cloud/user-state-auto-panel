@@ -107,3 +107,91 @@
   padding-bottom:calc(92px + env(safe-area-inset-bottom, 0px))!important;
   overscroll-behavior:contain!important;
 }
+
+/* v4.0.7 — field clearing + optional response-style controls */
+.ups_field_actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  flex-wrap:wrap!important;
+  margin-left:auto!important;
+}
+.ups_clear_field{
+  border:1px solid rgba(255,125,145,.18)!important;
+  background:rgba(255,90,115,.07)!important;
+  color:rgba(255,214,220,.82)!important;
+  border-radius:9px!important;
+  padding:4px 7px!important;
+  min-height:27px!important;
+  font-size:10px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.ups_clear_field:active{transform:scale(.97)!important}
+.ups_style_rule{
+  margin:10px 0!important;
+  padding:11px!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:14px!important;
+  background:rgba(0,0,0,.13)!important;
+}
+.ups_style_rule_top{
+  display:flex!important;
+  gap:10px!important;
+  align-items:flex-start!important;
+}
+.ups_style_rule_top input[type="checkbox"]{
+  width:20px!important;height:20px!important;
+  min-width:20px!important;
+  margin-top:2px!important;
+}
+.ups_style_rule_label{
+  flex:1!important;
+  min-width:0!important;
+}
+.ups_style_rule_label>label{
+  display:block!important;
+  font-weight:750!important;
+  font-size:13px!important;
+  color:#f8f3ff!important;
+}
+.ups_style_prompt{
+  width:100%!important;
+  min-height:82px!important;
+  margin-top:9px!important;
+  padding:10px!important;
+  border-radius:11px!important;
+  font-size:11px!important;
+  line-height:1.45!important;
+}
+.ups_style_prompt_actions{
+  display:flex!important;
+  justify-content:flex-end!important;
+  gap:7px!important;
+  margin-top:7px!important;
+  flex-wrap:wrap!important;
+}
+.ups_token_line{
+  display:flex!important;
+  gap:8px!important;
+  align-items:center!important;
+  margin-top:10px!important;
+  flex-wrap:wrap!important;
+  color:rgba(245,240,255,.85)!important;
+  font-size:12px!important;
+}
+.ups_token_line input{
+  width:100px!important;
+  max-width:100px!important;
+  padding:7px 8px!important;
+  border-radius:10px!important;
+}
+@media (max-width:560px){
+  .ups_labelrow{align-items:flex-start!important}
+  .ups_field_actions{gap:4px!important}
+  .ups_clear_field,.ups_field_actions .ups_helper{
+    font-size:9px!important;
+    padding:4px 6px!important;
+  }
+}
