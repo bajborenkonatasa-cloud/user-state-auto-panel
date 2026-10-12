@@ -235,3 +235,20 @@
 #ups_tab_lifebloom h3{font-size:17px!important;margin:0 0 10px!important}
 #ups_tab_lifebloom .lb-upload,#ups_tab_lifebloom .lb-mini{display:inline-block;font-size:12px;color:#f0b8db;cursor:pointer;margin:6px 8px 0 0;background:transparent;border:0}
 #ups_tab_lifebloom #lb_fertility{padding:9px 11px;border-radius:10px;background:rgba(178,99,166,.11);margin:8px 0}
+
+/* LifeBloom 0.4: compact layout with adjustable independent portrait */
+#ups_tab_lifebloom .lb-avatar{width:96px!important;height:96px!important;min-width:96px!important}
+#ups_tab_lifebloom .lb-avatar img{object-position:var(--ax,50%) var(--ay,30%)}
+#ups_tab_lifebloom .lb-hero{padding:10px!important;gap:10px!important;margin:5px 0 9px!important}
+#ups_tab_lifebloom .lb-card{padding:10px!important;margin:7px 0!important;border-radius:12px!important}
+#ups_tab_lifebloom .lb-card h3{font-size:14px!important;margin:0 0 7px!important}
+#ups_tab_lifebloom .lb-field{font-size:11px!important;margin:4px 0!important;gap:3px!important}
+#ups_tab_lifebloom .lb-field input,#ups_tab_lifebloom .lb-field select,#ups_tab_lifebloom .lb-field textarea{font-size:12px!important;padding:6px 8px!important;min-height:30px!important;border-radius:8px!important}
+#ups_tab_lifebloom .lb-stats{margin:6px 0!important;gap:5px!important}
+#ups_tab_lifebloom .lb-stats>div{padding:5px 3px!important;border-radius:9px!important}
+#ups_tab_lifebloom .lb-stats small{font-size:9px!important;margin-bottom:2px!important}
+#ups_tab_lifebloom .lb-muted{font-size:11px!important;line-height:1.35!important;margin:5px 0!important}
+#ups_tab_lifebloom .lb-btn{padding:7px 9px!important;border-radius:9px!important}
+#ups_tab_lifebloom .lb-position{display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;color:#d8a4ca;font-size:10px;margin-top:5px}
+#ups_tab_lifebloom .lb-position label{display:inline-flex;align-items:center;gap:2px}
+#ups_tab_lifebloom .lb-position input{width:65px;accent-color:#d995c4}
