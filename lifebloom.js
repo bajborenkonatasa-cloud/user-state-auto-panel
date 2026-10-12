@@ -23,29 +23,52 @@ function scan(d,full=false){const chat=env.ctx().chat||[];const start=full?0:Mat
  const patterns=[['pregnancy',/(?:я беременна|ты беременна|она беременна|подтвержден[ао] беременность|тест показал две полоски)/i],['birth',/(?:\bродила\b|появил[аи]сь на свет|родился (?:сын|мальчик)|родилась (?:дочь|девочка))/i],['family',/(?:наш[аи] (?:сын|дочь|реб[её]нок)|у нас (?:родился|родилась) (?:сын|дочь))/i]];
  for(const [type,re] of patterns)if(re.test(s)){const quote=s.match(re)?.[0]||'';const id=i+':'+type;if(!d.candidates.some(c=>c.id===id)&&!(d.dismissed||[]).includes(id))found.push({id,type,quote,excerpt:s.slice(Math.max(0,s.search(re)-65),Math.min(s.length,s.search(re)+115)),index:i});}
  }d.candidates=[...d.candidates,...found].slice(-80);d.lastScanned=chat.length;save(d);return found.length;}
-// Lightweight, local story signals. Only explicit character-linked statements are applied.
-// No extra model calls and no changes to other User Persona Studio sections.
-function updateLive(d){
+// LifeBloom live reader: local-only, reads existing model replies, never changes other Studio tabs.
+function updateLive(d, recent=false){
  if(d.liveAuto===false)return false;
  const chat=env.ctx()?.chat||[];
- let changed=false;
- const start=Math.max(0,Math.min(Number(d.lastLiveMessage)||0,chat.length));
  const people=peopleFor(d);
+ let changed=false;
+ const start=recent?Math.max(0,chat.length-8):Math.max(0,Math.min(Number(d.lastLiveMessage)||0,chat.length));
+ const moodRules=[
+  [/раздраж|злост|злится|ярост|бешен|рычит|огрыза|сердит|негодован/i,'😤 Раздражён'],
+  [/ревност|ревнует|собственнич|не жела(?:ет|л) делить/i,'😒 Ревнует'],
+  [/тревог|встревож|волну|беспоко|опасени|напряж[её]н/i,'😟 Взволнован'],
+  [/устал|изнемож|измотан|сонлив|зевнул/i,'😮‍💨 Устал'],
+  [/улыб|сме[её]тся|хохоч|радост|счастлив|доволен/i,'😊 Доволен'],
+  [/испуг|ужас|боится|страх|панику/i,'😨 Испуган'],
+  [/плач|слез|рыда|хныч|огорч|груст|печал/i,'🥺 Расстроен'],
+  [/нежн|ласков|забот|обнима|прижимает|целует/i,'🥰 Нежный'],
+  [/страст|желани|влечени|возбужд|томлен|жажд/i,'❤️‍🔥 Страстный'],
+  [/удивл|изумл|ошеломл|пораж[её]н/i,'😳 Удивлён'],
+  [/голод|хочет есть|печень|сладост/i,'🍪 Голоден'],
+  [/шалит|проказ|хитр|озорн|шкод|подшуч/i,'😏 Озорной']
+ ];
  for(let i=start;i<chat.length;i++){
-  const m=chat[i];if(m?.is_user||m?.is_system)continue;
-  const raw=String(m?.mes||'').replace(/<[^>]*>/g,' ').slice(0,12000);
+  const m=chat[i];if(!m||m.is_user||m.is_system)continue;
+  // Convert HTML, RP formatting and JSON-like tool blocks to searchable prose.
+  const raw=String(m.mes||'').replace(/<br\s*\/?\s*>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/\*\*/g,' ').slice(0,50000);
   if(!raw.trim())continue;
-  const lines=raw.split(/[\n.!?]+/).map(x=>x.trim()).filter(Boolean);
+  const chunks=raw.split(/[\n.!?。]+/).map(t=>t.trim()).filter(t=>t.length>3).slice(0,350);
   for(const p of people){
-   const escaped=p.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-   const nameRe=new RegExp('(?:^|\\s)'+escaped+'(?:[,:\\s]|$)','i');
-   const moods=[[/\b(обеспокоен|встревожен|тревожится|волнуется)\b/i,'😟 Обеспокоен'],[/\b(раздраж[её]н|злится|сердится)\b/i,'😤 Раздражён'],[/\b(счастлив|радост[её]н|улыбается)\b/i,'😊 Радостный'],[/\b(устал|измотан|сонн)\w*/i,'😮‍💨 Устал'],[/\b(ревнует|ревнив)\w*/i,'😒 Ревнует'],[/\b(испуган|боится)\b/i,'😨 Испуган'],[/\b(плачет|рыдает|хнычет)\b/i,'🥺 Расстроен']];
-   for(const line of lines){
-    if(!nameRe.test(line))continue;
-    for(const [re,label] of moods){if(re.test(line)&&p.mood!==label){p.mood=label;changed=true;} }
-    // Only a clearly attributed, quoted internal thought is captured.
-    const thought=line.match(/(?:подумал[а]?|мысленно произн[её]с|про себя подумал[а]?)\s*[:—-]?\s*[«“"]([^»”"]{4,140})[»”"]/i);
-    if(thought&&p.thought!==thought[1]){p.thought=thought[1];changed=true;}
+   const name=String(p.name||'').trim();if(!name)continue;
+   const names=[name];if(name.toLowerCase()==='roen')names.push('Роен','Роэн','Роэнa','Роена');
+   if(name.toLowerCase()==='калеб')names.push('Калеба','Калебом');
+   if(name.toLowerCase()==='каел')names.push('Каэл','Каэла','Kael');
+   const escaped=names.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+   const nameRe=new RegExp('(?:^|[^\\p{L}])(?:'+escaped+')(?:$|[^\\p{L}])','iu');
+   let best=null;
+   for(const chunk of chunks){
+    if(!nameRe.test(chunk))continue;
+    const match=moodRules.find(([re])=>re.test(chunk));
+    if(match)best={mood:match[1],chunk};
+    const explicit=chunk.match(/(?:подумал[а]?|мысленно|про себя|мысль|хочет|собирается|решил[а]?)[^«“"\n]{0,65}[«“"]([^»”"]{5,130})[»”"]/i);
+    if(explicit){const t=explicit[1].trim();if(t&&p.thought!==t){p.thought=t;changed=true;}}
+   }
+   if(best){
+    if(p.mood!==best.mood){p.mood=best.mood;changed=true;}
+    // Use an actual excerpt as a scene note; never fabricate a quoted internal monologue.
+    if(!p.thought || p.liveNote){const note=best.chunk.replace(/^[—–*\s]+/,'').slice(0,130);if(note!==p.thought){p.thought=note;p.liveNote=true;changed=true;}}
    }
   }
  }
@@ -76,7 +99,7 @@ function render(){const root=document.getElementById('ups_tab_lifebloom');if(!ro
  const settings=document.createElement('div');settings.className='lb-settings';settings.hidden=true;
  const settingsHeader=document.createElement('div');settingsHeader.className='lb-settings-header';settingsHeader.innerHTML='<b>⚙ Настройки LifeBloom</b><button type="button" id="lb_settingsClose">✕</button>';
  const themeRow=document.createElement('label');themeRow.className='lb-field';themeRow.innerHTML='<span>Тема оформления</span><select id="lb_theme"><option value="hanabi">💜 Hanabi</option><option value="moon">🌙 Лунная</option><option value="rose">🌸 Розовая</option><option value="minimal">✧ Минимализм</option></select>';
- settings.append(settingsHeader,themeRow);const liveToggle=document.createElement('label');liveToggle.className='lb-switch';liveToggle.innerHTML=`<input type="checkbox" id="lb_liveAuto" ${d.liveAuto!==false?'checked':''}> 🌸 Живые реакции из ответов модели (локально, без токенов)`;settings.append(liveToggle);liveToggle.querySelector('input').onchange=e=>{const x=load();x.liveAuto=e.target.checked;save(x);};
+ settings.append(settingsHeader,themeRow);const liveToggle=document.createElement('label');liveToggle.className='lb-switch';liveToggle.innerHTML=`<input type="checkbox" id="lb_liveAuto" ${d.liveAuto!==false?'checked':''}> 🌸 Живые реакции из ответов модели (локально, без токенов)`;settings.append(liveToggle);const reread=document.createElement('button');reread.className='lb-btn';reread.textContent='↻ Обновить реакции из последних 8 сообщений';reread.onclick=()=>{const x=load();updateLive(x,true);render();};settings.append(reread);liveToggle.querySelector('input').onchange=e=>{const x=load();x.liveAuto=e.target.checked;save(x);};
  const avatarPosition=root.querySelector('.lb-position');if(avatarPosition)settings.append(avatarPosition);
  const upload=root.querySelector('.lb-upload');if(upload)settings.append(upload);
  const clear=root.querySelector('#lb_avatarClear');if(clear)settings.append(clear);
@@ -105,7 +128,7 @@ function render(){const root=document.getElementById('ups_tab_lifebloom');if(!ro
    if(!p)return;p.avatar=canvas.toDataURL('image/jpeg',.78);save(x);render();
   }catch(e){alert('Не удалось загрузить портрет: '+e.message);}finally{URL.revokeObjectURL(url);}
  });
- registry.querySelectorAll('[data-person-edit]').forEach(el=>el.onclick=()=>{const x=load(),p=(x.people||[]).find(p=>p.id===el.dataset.personEdit);if(!p)return;const mood=prompt('Настроение (можно с эмодзи)',p.mood||'');if(mood===null)return;const thought=prompt('Короткая мысль о Ханаби / её семье',p.thought||'');if(thought===null)return;p.mood=mood.slice(0,100);p.thought=thought.slice(0,220);save(x);render();});
+ registry.querySelectorAll('[data-person-edit]').forEach(el=>el.onclick=()=>{const x=load(),p=(x.people||[]).find(p=>p.id===el.dataset.personEdit);if(!p)return;const mood=prompt('Настроение (можно с эмодзи)',p.mood||'');if(mood===null)return;const thought=prompt('Короткая мысль о Ханаби / её семье',p.thought||'');if(thought===null)return;p.mood=mood.slice(0,100);p.thought=thought.slice(0,220);p.liveNote=false;save(x);render();});
  const phase=document.createElement('div');phase.className='lb-live-phase';phase.textContent=fertility(d);
  statsEl?.after(phase);
  // No redundant help text in the display-only dashboard.

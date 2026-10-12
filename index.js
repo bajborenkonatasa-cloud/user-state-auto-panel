@@ -709,7 +709,7 @@ function bindEventsOnce(){
     globalThis.__ups4_events_bound=true;
     eventSource.on(event_types.CHAT_CHANGED,refreshForChat);
     eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));
-    eventSource.on(event_types.MESSAGE_RECEIVED,()=>{onLifeBloomMessage();setTimeout(clearOneShotAfterReply,50);});
+    eventSource.on(event_types.MESSAGE_RECEIVED,()=>{setTimeout(onLifeBloomMessage,300);setTimeout(onLifeBloomMessage,1300);setTimeout(clearOneShotAfterReply,50);});
 }
 function init(){
     setupLifeBloom({ids,names,ctx});
