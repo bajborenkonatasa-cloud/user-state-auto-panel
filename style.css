@@ -351,3 +351,8 @@
 #ups_tab_lifebloom .lb-person-upload{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border:1px solid #a67cba66;border-radius:7px;cursor:pointer;background:#66466c33;font-size:15px}
 #ups_tab_lifebloom .lb-reg-row{flex-wrap:wrap;gap:6px!important}
 #ups_tab_lifebloom .lb-reg-row button{min-width:27px;min-height:27px}
+
+/* LifeBloom: unobtrusive chat notification and heroine's current feelings */
+#ups-lifebloom-chat-notice{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(92vw,520px);width:max-content;display:flex;gap:12px;align-items:center;padding:11px 14px;border:1px solid #9d72bb;border-radius:15px;background:#24192f;color:#f9e9ff;box-shadow:0 6px 25px #0009;font-size:14px;line-height:1.4}
+#ups-lifebloom-chat-notice button{background:transparent;color:inherit;border:0;font-size:23px;cursor:pointer}
+.lb-live-hero{margin:10px 0;padding:12px;border:1px solid #775181;border-radius:14px;background:#2a1932;color:#f3dff1;line-height:1.45}

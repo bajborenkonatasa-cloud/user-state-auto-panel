@@ -1,4 +1,4 @@
-import { setupLifeBloom, lifeBloomTab, refreshLifeBloom, onLifeBloomMessage } from './lifebloom.js';
+import { setupLifeBloom, lifeBloomTab, refreshLifeBloom, onLifeBloomMessage, lifeBloomPrompt } from './lifebloom.js';
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
@@ -282,6 +282,7 @@ function buildPrompt(data=loadState()) {
     if(data.styleAntiEcho && clean(data.styleAntiEchoPrompt)) style.push(macro(data.styleAntiEchoPrompt));
     if(style.length) out.push('[OPTIONAL RESPONSE STYLE — active rules only]\n'+style.map((x,i)=>`${i+1}. ${x}`).join('\n'));
 
+    out.push(lifeBloomPrompt());
     if(clean(data.oocOnce)) out.push('[ONE-TIME OOC REQUEST]\n'+data.oocOnce.trim());
     return out.filter(Boolean).join('\n\n');
 }
