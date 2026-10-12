@@ -323,3 +323,19 @@
 #ups_tab_lifebloom .lb-settings-header{margin-bottom:6px!important}
 #ups_tab_lifebloom .lb-settings{padding-top:7px!important;margin-top:7px!important}
 @media(max-width:520px){#ups4_panel .ups_hero{padding-right:91px!important}#ups_tab_lifebloom .lb-avatar{width:70px!important;height:70px!important;min-width:70px!important}}
+
+/* LifeBloom 0.4 — compact relationship circle */
+#ups_tab_lifebloom .lb-circle{margin:9px 0 12px;display:grid;gap:7px}
+#ups_tab_lifebloom .lb-circle-head{font-size:11px;letter-spacing:.09em;color:#e4c0ef;display:flex;justify-content:space-between}
+#ups_tab_lifebloom .lb-circle-head small{opacity:.65}
+#ups_tab_lifebloom .lb-circle-empty{font-size:11px;opacity:.65;padding:10px 12px;border:1px dashed #765483;border-radius:12px}
+#ups_tab_lifebloom .lb-person{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid rgba(224,171,238,.25);background:linear-gradient(115deg,rgba(111,56,126,.23),rgba(28,32,62,.35));border-radius:13px}
+#ups_tab_lifebloom .lb-person-face{width:43px;height:43px;min-width:43px;border-radius:50%;display:grid;place-items:center;background:#46304f;overflow:hidden;font-size:23px}
+#ups_tab_lifebloom .lb-person-face img{width:100%;height:100%;object-fit:cover}
+#ups_tab_lifebloom .lb-person-info{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12px}
+#ups_tab_lifebloom .lb-person-role{font-size:9px;letter-spacing:.07em;color:#d2a5dc}
+#ups_tab_lifebloom .lb-person-info small{font-size:11px;opacity:.8}
+#ups_tab_lifebloom .lb-person-thought{font-size:11px;font-style:italic;line-height:1.35;color:#e8d7e9}
+#ups_tab_lifebloom .lb-reg-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid #ffffff20;padding:7px 0;font-size:11px}
+#ups_tab_lifebloom .lb-reg-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#ups_tab_lifebloom .lb-reg-row button{padding:3px 7px;border-radius:7px}
