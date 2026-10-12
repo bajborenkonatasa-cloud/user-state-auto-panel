@@ -252,3 +252,12 @@
 #ups_tab_lifebloom .lb-position{display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;color:#d8a4ca;font-size:10px;margin-top:5px}
 #ups_tab_lifebloom .lb-position label{display:inline-flex;align-items:center;gap:2px}
 #ups_tab_lifebloom .lb-position input{width:65px;accent-color:#d995c4}
+
+/* LifeBloom 0.5: guaranteed edge-to-edge portrait, tighter optional controls */
+#ups_tab_lifebloom .lb-avatar{position:relative;isolation:isolate}
+#ups_tab_lifebloom .lb-avatar img{display:block;width:100%!important;height:100%!important;min-width:100%;min-height:100%;object-fit:cover!important;object-position:var(--ax,50%) var(--ay,30%);transform:scale(var(--az,1.25));transform-origin:center center;border-radius:0!important}
+#ups_tab_lifebloom .lb-advanced{margin:7px 0;color:#cda7d7;font-size:12px}
+#ups_tab_lifebloom .lb-advanced summary{cursor:pointer;padding:5px 0}
+#ups_tab_lifebloom .lb-advanced .lb-field{margin-top:6px}
+#ups_tab_lifebloom .lb-position{gap:2px 5px!important}
+#ups_tab_lifebloom .lb-position input{width:52px!important}
