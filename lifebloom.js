@@ -15,7 +15,7 @@ function peopleFor(d){
  }
  return people;
 }
-function personCard(p){const role=p.role==='main'?'💕 ГЛАВНЫЙ ГЕРОЙ':p.role==='child'?'🧸 РЕБЁНОК':'✨ ВАЖНЫЙ NPC';return `<div class="lb-person" data-person="${esc(p.id)}"><div class="lb-person-face">${p.avatar?`<img src="${esc(p.avatar)}" alt="">`:esc(p.role==='child'?'🧸':p.role==='main'?'💗':'✨')}</div><div class="lb-person-info"><div class="lb-person-role">${role}</div><b>${esc(p.name)}</b>${p.mood?`<small>${esc(p.mood)}</small>`:''}${p.thought?`<div class="lb-person-thought">💭 «${esc(p.thought)}»</div>`:''}</div></div>`;}
+function personCard(p){const role=p.role==='main'?'💕 ГЛАВНЫЙ ГЕРОЙ':p.role==='child'?'🧸 РЕБЁНОК':'✨ ВАЖНЫЙ NPC';return `<div class="lb-person" data-person="${esc(p.id)}"><div class="lb-person-face">${p.avatar?`<img src="${esc(p.avatar)}" alt="">`:esc(p.role==='child'?'🧸':p.role==='main'?'💗':'✨')}</div><div class="lb-person-info"><div class="lb-person-role">${role}</div><b>${esc(p.name)}</b>${p.mood?`<small>${esc(p.mood)}</small>`:''}${p.thought?`<div class="lb-person-thought">${esc(p.reactionEmoji||"😌🫶🏻")} «${esc(p.thought)}»</div>`:''}</div></div>`;}
 function save(d){try{localStorage.setItem(key(),JSON.stringify(d));}catch(e){alert('Не удалось сохранить LifeBloom: '+e.message);}}
 const input=(id,label,value='',type='text')=>`<label class="lb-field"><span>${label}</span><input id="lb_${id}" type="${type}" value="${esc(value)}"></label>`;
 function scan(d,full=false){const chat=env.ctx().chat||[];const start=full?0:Math.min(d.lastScanned,chat.length);const found=[];
@@ -23,6 +23,22 @@ function scan(d,full=false){const chat=env.ctx().chat||[];const start=full?0:Mat
  const patterns=[['pregnancy',/(?:я беременна|ты беременна|она беременна|подтвержден[ао] беременность|тест показал две полоски)/i],['birth',/(?:\bродила\b|появил[аи]сь на свет|родился (?:сын|мальчик)|родилась (?:дочь|девочка))/i],['family',/(?:наш[аи] (?:сын|дочь|реб[её]нок)|у нас (?:родился|родилась) (?:сын|дочь))/i]];
  for(const [type,re] of patterns)if(re.test(s)){const quote=s.match(re)?.[0]||'';const id=i+':'+type;if(!d.candidates.some(c=>c.id===id)&&!(d.dismissed||[]).includes(id))found.push({id,type,quote,excerpt:s.slice(Math.max(0,s.search(re)-65),Math.min(s.length,s.search(re)+115)),index:i});}
  }d.candidates=[...d.candidates,...found].slice(-80);d.lastScanned=chat.length;save(d);return found.length;}
+// Lightweight, local, first-person reaction captions. These are stylized guesses, not model thoughts.
+const reactionStyles=[
+ [/Раздраж|злост/i,['😤🫠','Мне сейчас лучше дать немного пространства.']],
+ [/Ревнует/i,['😒🤏🏻','И почему меня это так задевает?..']],
+ [/Взволнован/i,['🥺🤝','Надеюсь, с ней всё будет хорошо.']],
+ [/Устал/i,['😮‍💨👌🏻','Мне бы передохнуть... Но сначала убедиться, что с ней всё хорошо.']],
+ [/Доволен/i,['😁🫶🏻','Вот это мгновение хочется запомнить.']],
+ [/Испуган/i,['😳🫣','Только бы всё обошлось.']],
+ [/Расстроен/i,['🥹💔','Не хочу, чтобы она видела меня таким.']],
+ [/Нежный/i,['☺️😌','Хочу побыть рядом с ней ещё немного.']],
+ [/Страстный/i,['😏🔥','Как же сильно она на меня действует...']],
+ [/Удивлён/i,['🤭👀','Вот этого я точно не ожидал!']],
+ [/Голоден/i,['🤤🍪','Интересно, найдётся что-нибудь вкусное?']],
+ [/Озорной/i,['😏👌🏻','Кажется, у меня появилась маленькая идея...']]
+];
+function styledReaction(mood){return reactionStyles.find(([re])=>re.test(mood||''))?.[1]||['😌✨','Интересно, что будет дальше...'];}
 // LifeBloom live reader: local-only, reads existing model replies, never changes other Studio tabs.
 function updateLive(d, recent=false){
  if(d.liveAuto===false)return false;
@@ -63,12 +79,12 @@ function updateLive(d, recent=false){
     const match=moodRules.find(([re])=>re.test(chunk));
     if(match)best={mood:match[1],chunk};
     const explicit=chunk.match(/(?:подумал[а]?|мысленно|про себя|мысль|хочет|собирается|решил[а]?)[^«“"\n]{0,65}[«“"]([^»”"]{5,130})[»”"]/i);
-    if(explicit){const t=explicit[1].trim();if(t&&p.thought!==t){p.thought=t;changed=true;}}
+    if(explicit){const t=explicit[1].trim();if(t&&p.thought!==t){p.thought=t; p.reactionEmoji="😏👌🏻";p.liveNote=false;changed=true;}}
    }
    if(best){
     if(p.mood!==best.mood){p.mood=best.mood;changed=true;}
     // Use an actual excerpt as a scene note; never fabricate a quoted internal monologue.
-    if(!p.thought || p.liveNote){const note=best.chunk.replace(/^[—–*\s]+/,'').slice(0,130);if(note!==p.thought){p.thought=note;p.liveNote=true;changed=true;}}
+    const [emojis,caption]=styledReaction(best.mood);if(p.thought!==caption||p.reactionEmoji!==emojis||!p.liveNote){p.thought=caption;p.reactionEmoji=emojis;p.liveNote=true;changed=true;}
    }
   }
  }
