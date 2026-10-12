@@ -2,7 +2,7 @@
 // No model requests. No prompt injection. No automatic changes from uncertain prose.
 const STORE='ups_lifebloom_v1_';
 let env=null;
-const empty=()=>({avatar:'',avatarX:50,avatarY:30,avatarZoom:125,rpLabel:'',rpDate:'',universe:'standard',contraception:'unspecified',cycleMode:'manual',partner:'',status:'none',week:'',due:'',cycleDay:'',cycleLength:'28',cycleStart:'',gestation:'40',babies:'1',notes:'',children:[],people:[],candidates:[],dismissed:[],lastScanned:0,auto:true});
+const empty=()=>({avatar:'',avatarX:50,avatarY:30,avatarZoom:125,rpLabel:'',rpDate:'',universe:'standard',contraception:'unspecified',cycleMode:'manual',partner:'',status:'none',week:'',due:'',cycleDay:'',cycleLength:'28',cycleStart:'',gestation:'40',babies:'1',notes:'',children:[],people:[],candidates:[],dismissed:[],lastScanned:0,lastLiveMessage:0,liveAuto:true,auto:true});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function key(){const x=env.ids(),n=env.names().userName;return STORE+encodeURIComponent([x.charId,x.chatId,n].join('::'));}
 function load(){try{return {...empty(),...JSON.parse(localStorage.getItem(key())||'{}')};}catch{return empty();}}
@@ -23,11 +23,41 @@ function scan(d,full=false){const chat=env.ctx().chat||[];const start=full?0:Mat
  const patterns=[['pregnancy',/(?:я беременна|ты беременна|она беременна|подтвержден[ао] беременность|тест показал две полоски)/i],['birth',/(?:\bродила\b|появил[аи]сь на свет|родился (?:сын|мальчик)|родилась (?:дочь|девочка))/i],['family',/(?:наш[аи] (?:сын|дочь|реб[её]нок)|у нас (?:родился|родилась) (?:сын|дочь))/i]];
  for(const [type,re] of patterns)if(re.test(s)){const quote=s.match(re)?.[0]||'';const id=i+':'+type;if(!d.candidates.some(c=>c.id===id)&&!(d.dismissed||[]).includes(id))found.push({id,type,quote,excerpt:s.slice(Math.max(0,s.search(re)-65),Math.min(s.length,s.search(re)+115)),index:i});}
  }d.candidates=[...d.candidates,...found].slice(-80);d.lastScanned=chat.length;save(d);return found.length;}
+// Lightweight, local story signals. Only explicit character-linked statements are applied.
+// No extra model calls and no changes to other User Persona Studio sections.
+function updateLive(d){
+ if(d.liveAuto===false)return false;
+ const chat=env.ctx()?.chat||[];
+ let changed=false;
+ const start=Math.max(0,Math.min(Number(d.lastLiveMessage)||0,chat.length));
+ const people=peopleFor(d);
+ for(let i=start;i<chat.length;i++){
+  const m=chat[i];if(m?.is_user||m?.is_system)continue;
+  const raw=String(m?.mes||'').replace(/<[^>]*>/g,' ').slice(0,12000);
+  if(!raw.trim())continue;
+  const lines=raw.split(/[\n.!?]+/).map(x=>x.trim()).filter(Boolean);
+  for(const p of people){
+   const escaped=p.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+   const nameRe=new RegExp('(?:^|\\s)'+escaped+'(?:[,:\\s]|$)','i');
+   const moods=[[/\b(обеспокоен|встревожен|тревожится|волнуется)\b/i,'😟 Обеспокоен'],[/\b(раздраж[её]н|злится|сердится)\b/i,'😤 Раздражён'],[/\b(счастлив|радост[её]н|улыбается)\b/i,'😊 Радостный'],[/\b(устал|измотан|сонн)\w*/i,'😮‍💨 Устал'],[/\b(ревнует|ревнив)\w*/i,'😒 Ревнует'],[/\b(испуган|боится)\b/i,'😨 Испуган'],[/\b(плачет|рыдает|хнычет)\b/i,'🥺 Расстроен']];
+   for(const line of lines){
+    if(!nameRe.test(line))continue;
+    for(const [re,label] of moods){if(re.test(line)&&p.mood!==label){p.mood=label;changed=true;} }
+    // Only a clearly attributed, quoted internal thought is captured.
+    const thought=line.match(/(?:подумал[а]?|мысленно произн[её]с|про себя подумал[а]?)\s*[:—-]?\s*[«“"]([^»”"]{4,140})[»”"]/i);
+    if(thought&&p.thought!==thought[1]){p.thought=thought[1];changed=true;}
+   }
+  }
+ }
+ if(d.lastLiveMessage!==chat.length){d.lastLiveMessage=chat.length;changed=true;}
+ if(changed)save(d);
+ return changed;
+}
 function daysBetween(a,b){const x=new Date(a+'T12:00:00'),y=new Date(b+'T12:00:00');return Number.isFinite(+x)&&Number.isFinite(+y)?Math.round((y-x)/86400000):null;}
 function addDays(s,n){const d=new Date(s+'T12:00:00');if(!Number.isFinite(+d))return '';d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
 function summary(d){const today=d.rpDate;let cycle='—',preg='—';const len=Math.max(20,Math.min(45,Number(d.cycleLength)||28));if(d.cycleStart&&today){const n=daysBetween(d.cycleStart,today);if(n!==null&&n>=0)cycle=`День ${n%len+1} / ${len}`;}if(d.cycleDay && (!d.cycleStart || !today))cycle=`День ${d.cycleDay} / ${len}`;if(d.status==='pregnant'){const weeks=Number(d.week);preg=weeks>0?`${weeks} нед.`:'Ожидание';}return {cycle,preg};}
 function fertility(d){const len=Number(d.cycleLength)||28;let day=Number(d.cycleDay);if(d.rpDate&&d.cycleStart){const n=daysBetween(d.cycleStart,d.rpDate);if(n!==null&&n>=0)day=n%len+1;}if(!day||day<1||day>len)return '🌙 Укажи день цикла или сюжетные даты, чтобы увидеть условную фазу.';const ov=Math.max(1,len-14);const phase=day<=5?'Менструальная фаза':day<ov-5?'Фолликулярная фаза':day<=ov+1?'Условное фертильное окно':'Лютеиновая фаза';return `${d.universe==='omegaverse'?'🐺 Омегаверс · ':'🌸 '}${phase} · день ${day}/${len}. ${d.universe==='omegaverse'?'Течки и запахи определяются правилами твоего мира, а не реальной биологией.':'Фертильное окно приблизительное; это не гарантия зачатия и не метод контрацепции.'}`;}
-function render(){const root=document.getElementById('ups_tab_lifebloom');if(!root)return;const d=load(),user=env.names().userName,stats=summary(d),people=peopleFor(d);root.innerHTML=`<div class="ups_section_kicker">🌸 LIFE BLOOM</div><div class="ups_intro">Только твоя персона · отдельная история для каждого чата. Всё под твоим контролем.</div>
+function render(){const root=document.getElementById('ups_tab_lifebloom');if(!root)return;const d=load();updateLive(d);const user=env.names().userName,stats=summary(d),people=peopleFor(d);root.innerHTML=`<div class="ups_section_kicker">🌸 LIFE BLOOM</div><div class="ups_intro">Только твоя персона · отдельная история для каждого чата. Всё под твоим контролем.</div>
 <div class="lb-hero"><div class="lb-avatar" style="--ax:${Number(d.avatarX??50)}%;--ay:${Number(d.avatarY??30)}%;--az:${Number(d.avatarZoom??125)/100}">${d.avatar?`<img src="${esc(d.avatar)}" alt="Аватар">`:'🌷'}</div><div><div class="lb-overline">МОЯ ГЕРОИНЯ</div><div class="lb-name">${esc(user)}</div><div class="lb-muted">Её история, её выбор, её семья</div><label class="lb-upload">📷 Свой портрет <input id="lb_avatarFile" type="file" accept="image/*" hidden></label><button class="lb-mini" id="lb_avatarClear">Убрать</button><div class="lb-position">Кадр: <label>↔ <input id="lb_avatarX" type="range" min="0" max="100" value="${Number(d.avatarX??50)}"></label><label>↕ <input id="lb_avatarY" type="range" min="0" max="100" value="${Number(d.avatarY??30)}"></label><label>＋ <input id="lb_avatarZoom" type="range" min="100" max="250" value="${Number(d.avatarZoom??125)}"></label></div></div></div><div class="lb-stats"><div><small>🌙 Цикл</small><b>${esc(stats.cycle)}</b></div><div><small>💗 Материнство</small><b>${esc(stats.preg)}</b></div><div><small>🧸 Дети</small><b>${d.children.length}</b></div></div>
 <div class="lb-card"><h3>🕰️ Время истории</h3>${input('rpLabel','Дата и место по плашке ролевой (любой календарь)',d.rpLabel)}<details class="lb-advanced"><summary>Обычный календарь (необязательно)</summary>${input('rpDate','Дата для расчётов',d.rpDate,'date')}</details><div class="lb-muted">Впиши дату из ролевой. Для фантастического календаря достаточно одной строки.</div></div><div class="lb-card"><h3>🌙 Ритмы жизни</h3><div class="lb-grid">${input('cycleDay','День цикла',d.cycleDay,'number')}${input('cycleLength','Длина цикла (дни)',d.cycleLength,'number')}</div><details class="lb-advanced"><summary>Дата начала цикла (необязательно)</summary>${input('cycleStart','Первый день последнего цикла',d.cycleStart,'date')}</details><div class="lb-muted">Расчёт ведётся исключительно по дате ролевой. Если в мире необычный календарь, используй ручной день цикла. Расчёт условный, для сюжета.</div><div class="lb-muted" id="lb_fertility">${fertility(d)}</div><div class="lb-grid"><label class="lb-field"><span>Вселенная</span><select id="lb_universe"><option value="standard">Обычная</option><option value="omegaverse">Омегаверс</option></select></label><label class="lb-field"><span>Контрацепция (сюжет)</span><select id="lb_contraception"><option value="unspecified">Не указана</option><option value="none">Нет</option><option value="barrier">Барьерная</option><option value="hormonal">Гормональная</option><option value="fictional">Фэнтези / другая</option></select></label></div></div>
 <div class="lb-card"><h3>🩷 Материнство</h3><label class="lb-field"><span>Состояние</span><select id="lb_status"><option value="none">Не указано</option><option value="pregnant">Беременна</option><option value="postpartum">После родов</option><option value="other">Другое</option></select></label><div class="lb-grid">${input('week','Неделя беременности',d.week,'number')}${input('due','Предполагаемая дата родов',d.due,'date')}</div><div class="lb-grid">${input('gestation','Срок беременности (недель)',d.gestation,'number')}${input('babies','Количество малышей',d.babies,'number')}</div>${input('partner','Отец / партнёр',d.partner)}<details class="lb-advanced"><summary>Дополнительные сведения (необязательно)</summary><label class="lb-field"><span>Сюжетные особенности, симптомы или пожелания</span><textarea id="lb_notes" rows="2">${esc(d.notes)}</textarea></label></details><button class="lb-btn lb-primary" id="lb_save">💾 Сохранить изменения</button></div>
@@ -46,7 +76,7 @@ function render(){const root=document.getElementById('ups_tab_lifebloom');if(!ro
  const settings=document.createElement('div');settings.className='lb-settings';settings.hidden=true;
  const settingsHeader=document.createElement('div');settingsHeader.className='lb-settings-header';settingsHeader.innerHTML='<b>⚙ Настройки LifeBloom</b><button type="button" id="lb_settingsClose">✕</button>';
  const themeRow=document.createElement('label');themeRow.className='lb-field';themeRow.innerHTML='<span>Тема оформления</span><select id="lb_theme"><option value="hanabi">💜 Hanabi</option><option value="moon">🌙 Лунная</option><option value="rose">🌸 Розовая</option><option value="minimal">✧ Минимализм</option></select>';
- settings.append(settingsHeader,themeRow);
+ settings.append(settingsHeader,themeRow);const liveToggle=document.createElement('label');liveToggle.className='lb-switch';liveToggle.innerHTML=`<input type="checkbox" id="lb_liveAuto" ${d.liveAuto!==false?'checked':''}> 🌸 Живые реакции из ответов модели (локально, без токенов)`;settings.append(liveToggle);liveToggle.querySelector('input').onchange=e=>{const x=load();x.liveAuto=e.target.checked;save(x);};
  const avatarPosition=root.querySelector('.lb-position');if(avatarPosition)settings.append(avatarPosition);
  const upload=root.querySelector('.lb-upload');if(upload)settings.append(upload);
  const clear=root.querySelector('#lb_avatarClear');if(clear)settings.append(clear);
@@ -102,4 +132,4 @@ function render(){const root=document.getElementById('ups_tab_lifebloom');if(!ro
 export function setupLifeBloom(environment){env=environment;}
 export function lifeBloomTab(){const p=document.createElement('section');p.id='ups_tab_lifebloom';p.className='ups_tabpage';return p;}
 export function refreshLifeBloom(){if(env)render();}
-export function onLifeBloomMessage(){if(!env)return;const d=load();if(d.auto){scan(d,false);if(document.getElementById('ups_tab_lifebloom')?.classList.contains('ups_active'))render();}}
+export function onLifeBloomMessage(){if(!env)return;const d=load();if(d.auto)scan(d,false);updateLive(load());if(document.getElementById('ups_tab_lifebloom')?.classList.contains('ups_active'))render();}
