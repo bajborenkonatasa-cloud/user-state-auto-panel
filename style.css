@@ -339,3 +339,15 @@
 #ups_tab_lifebloom .lb-reg-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid #ffffff20;padding:7px 0;font-size:11px}
 #ups_tab_lifebloom .lb-reg-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #ups_tab_lifebloom .lb-reg-row button{padding:3px 7px;border-radius:7px}
+
+/* LifeBloom 0.4.1: clean dashboard, compact tools, square character portraits */
+#ups_tab_lifebloom .ups_section_kicker{font-size:10px!important;letter-spacing:.11em!important;margin:0!important;padding:2px 0!important}
+#ups_tab_lifebloom .lb-toolbar{margin-top:-23px!important;min-height:25px!important;padding:0 2px 3px!important;justify-content:flex-end!important}
+#ups_tab_lifebloom .lb-toolbar button{width:25px!important;min-width:25px!important;height:25px!important;padding:0!important;font-size:13px!important;border-radius:7px!important}
+#ups_tab_lifebloom .lb-person{padding:9px!important;gap:11px!important}
+#ups_tab_lifebloom .lb-person-face{width:67px!important;height:67px!important;min-width:67px!important;border-radius:12px!important;font-size:26px!important;border:1px solid rgba(234,167,231,.35)}
+#ups_tab_lifebloom .lb-person-face img{width:100%!important;height:100%!important;object-fit:cover!important}
+#ups_tab_lifebloom .lb-person-info b{font-size:14px!important}
+#ups_tab_lifebloom .lb-person-upload{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border:1px solid #a67cba66;border-radius:7px;cursor:pointer;background:#66466c33;font-size:15px}
+#ups_tab_lifebloom .lb-reg-row{flex-wrap:wrap;gap:6px!important}
+#ups_tab_lifebloom .lb-reg-row button{min-width:27px;min-height:27px}
