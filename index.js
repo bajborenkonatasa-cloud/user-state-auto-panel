@@ -1,3 +1,4 @@
+import { setupLifeBloom, lifeBloomTab, refreshLifeBloom, onLifeBloomMessage } from './lifebloom.js';
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
@@ -357,10 +358,10 @@ function renderPanel(){
     close.addEventListener('click',()=>{ try{saveState(getData());}catch{} panel.classList.remove('ups_open'); });
     actions.append(saveNow,close); hero.appendChild(actions); panel.appendChild(hero);
     const tabs=make('div',{class:'ups_tabs'});
-    const tabDefs=[['state','💜','Сейчас'],['profile','👤','Профиль'],['relations','💕','Отношения'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
+    const tabDefs=[['state','💜','Сейчас'],['profile','👤','Профиль'],['relations','💕','Отношения'],['lifebloom','🌸','Жизнь'],['world','🏠','Мир'],['show','🖼','Показать'],['director','🎬','Режиссёр'],['notes','📝','Заметки'],['preview','👁','Модель']];
     for(const [key,ic,txt] of tabDefs){const b=make('button',{type:'button','data-tab':key},`${ic} ${txt}`); b.addEventListener('click',()=>showTab(key)); tabs.appendChild(b);} panel.appendChild(tabs);
     const body=make('div',{class:'ups_body'}); panel.appendChild(body);
-    body.append(renderStateTab(),renderProfileTab(),renderRelationsTab(),renderWorldTab(),renderShowTab(),renderDirectorTab(),renderNotesTab(),renderPreviewTab());
+    body.append(renderStateTab(),renderProfileTab(),renderRelationsTab(),lifeBloomTab(),renderWorldTab(),renderShowTab(),renderDirectorTab(),renderNotesTab(),renderPreviewTab());
     document.body.appendChild(panel); showTab(activeTab); setValues(loadState()); renderCards(); renderShowQueue(); updatePreview(loadState()); renderStatus();
 }
 function tabSection(id,title,desc=''){const d=make('section',{id:'ups_tab_'+id,class:'ups_tabpage'}); d.appendChild(make('div',{class:'ups_section_kicker'},title)); if(desc)d.appendChild(make('div',{class:'ups_intro'},desc)); return d;}
@@ -563,7 +564,7 @@ function renderPreviewTab(){
     const back=cardBox('💾 Резервная копия'); const row=make('div',{class:'ups_buttons'}); const ex=make('button',{type:'button',class:'ups_action'},'⬇️ Экспорт JSON'); ex.addEventListener('click',exportBackup); const im=make('button',{type:'button',class:'ups_action'},'⬆️ Импорт JSON'); im.addEventListener('click',()=>el('ups_import_file').click()); const fi=make('input',{id:'ups_import_file',type:'file',accept:'application/json',style:'display:none'}); fi.addEventListener('change',importBackup); row.append(ex,im,fi); back.appendChild(row); p.appendChild(back); return p;
 }
 
-function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='preview')updatePreview(loadState());}
+function showTab(key){activeTab=key; document.querySelectorAll('#'+PANEL_ID+' .ups_tabpage').forEach(x=>x.classList.toggle('ups_active',x.id==='ups_tab_'+key)); document.querySelectorAll('#'+PANEL_ID+' .ups_tabs button').forEach(x=>x.classList.toggle('ups_active',x.dataset.tab===key)); if(key==='world')renderCards(); if(key==='lifebloom')refreshLifeBloom(); if(key==='preview')updatePreview(loadState());}
 
 function setValues(d){
     const idsMap={feelings:'ups_feelings',thoughts:'ups_thoughts',secrets:'ups_secrets',goals:'ups_goals',desires:'ups_desires',motives:'ups_motives',avoid:'ups_avoid',relationship:'ups_relationship',trust:'ups_trust',tension:'ups_tension',affection:'ups_affection',desire:'ups_desire',jealousy:'ups_jealousy',resentment:'ups_resentment',location:'ups_location',appearanceNow:'ups_appearance',sceneGoal:'ups_scene_goal',modelNotes:'ups_model_notes',privateNotes:'ups_private_notes',directorPreset:'ups_director_preset',directorCustom:'ups_director_custom',directorMode:'ups_director_mode',oocOnce:'ups_ooc_once',oneShotCaption:'ups_one_caption',fullProfile:'ups_full_profile',
@@ -701,16 +702,17 @@ function togglePanel(){
         try{ renderStatus(); }catch(err){ console.error('[User Persona Studio] status render error',err); }
     }
 }
-function refreshForChat(){setTimeout(()=>{if(el(PANEL_ID)){refreshDynamicNames();setValues(loadState());renderCards();renderShowQueue();renderProfileStatus(loadState());}updateInjection(loadState());},350);}
+function refreshForChat(){setTimeout(()=>{refreshLifeBloom();if(el(PANEL_ID)){refreshDynamicNames();setValues(loadState());renderCards();renderShowQueue();renderProfileStatus(loadState());}updateInjection(loadState());},350);}
 
 function bindEventsOnce(){
     if(globalThis.__ups4_events_bound) return;
     globalThis.__ups4_events_bound=true;
     eventSource.on(event_types.CHAT_CHANGED,refreshForChat);
     eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));
-    eventSource.on(event_types.MESSAGE_RECEIVED,()=>setTimeout(clearOneShotAfterReply,50));
+    eventSource.on(event_types.MESSAGE_RECEIVED,()=>{onLifeBloomMessage();setTimeout(clearOneShotAfterReply,50);});
 }
 function init(){
+    setupLifeBloom({ids,names,ctx});
     // Важно: кнопку рисуем первой. Даже если одна из новых вкладок упадёт,
     // пользователь всё равно увидит 💜 и повторный запуск сможет восстановиться.
     renderTopButton();

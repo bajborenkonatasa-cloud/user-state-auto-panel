@@ -195,3 +195,23 @@
     padding:4px 6px!important;
   }
 }
+/* LifeBloom — self-contained mobile-first cards */
+#ups_tab_lifebloom .lb-hero{display:flex;align-items:center;gap:15px;padding:18px;border:1px solid #ba82d277;border-radius:22px;background:linear-gradient(130deg,#3c214f,#231a3b 60%,#1b223e);margin:12px 0 16px;box-shadow:0 10px 30px #09071150}
+#ups_tab_lifebloom .lb-avatar{width:72px;height:72px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;background:#5b355c;font-size:34px;border:2px solid #d995c4;overflow:hidden}
+#ups_tab_lifebloom .lb-avatar img{width:100%;height:100%;object-fit:cover}
+#ups_tab_lifebloom .lb-overline{font-size:10px;letter-spacing:.15em;color:#d8a4ca}
+#ups_tab_lifebloom .lb-name{font-family:Georgia,serif;font-size:24px;color:#fff;margin:3px 0}
+#ups_tab_lifebloom .lb-muted{font-size:12px;color:#c0b5ce;line-height:1.5;margin:8px 0}
+#ups_tab_lifebloom .lb-card{border:1px solid #ad7bb84d;border-radius:18px;background:linear-gradient(150deg,#201b31,#141522);padding:15px;margin:12px 0;box-shadow:0 7px 22px #0002}
+#ups_tab_lifebloom .lb-card h3{font-size:16px;color:#f4dbe9;margin:0 0 14px}
+#ups_tab_lifebloom .lb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#ups_tab_lifebloom .lb-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;min-width:0;color:#d5c9df;font-size:12px}
+#ups_tab_lifebloom .lb-field input,#ups_tab_lifebloom .lb-field select,#ups_tab_lifebloom .lb-field textarea{width:100%;min-width:0;box-sizing:border-box;background:#0e1120;color:#f9eefa;border:1px solid #8c639e88;border-radius:11px;padding:10px;font-size:14px}
+#ups_tab_lifebloom .lb-btn{border:1px solid #ab83c1;border-radius:12px;padding:10px 12px;color:#f6eafa;background:#38284c;margin:5px 5px 5px 0;font-size:12px;cursor:pointer}
+#ups_tab_lifebloom .lb-primary{background:linear-gradient(110deg,#975aa3,#76569e)}
+#ups_tab_lifebloom .lb-child,#ups_tab_lifebloom .lb-event{display:flex;justify-content:space-between;gap:8px;padding:10px;border:1px solid #755b8560;border-radius:12px;margin:8px 0;background:#211d30}
+#ups_tab_lifebloom .lb-child small{display:block;color:#bcaecb;font-size:11px;margin-top:4px}
+#ups_tab_lifebloom .lb-child button{background:none;border:0;color:#d6a6c8;cursor:pointer}
+#ups_tab_lifebloom .lb-event{display:block;line-height:1.5;font-size:12px;overflow-wrap:anywhere}
+#ups_tab_lifebloom .lb-count{color:#cba4d9}
+#ups_tab_lifebloom .lb-switch{display:flex;gap:8px;align-items:center;color:#e4d5e9;font-size:13px}
