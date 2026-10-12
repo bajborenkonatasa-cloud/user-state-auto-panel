@@ -356,3 +356,15 @@
 #ups-lifebloom-chat-notice{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(92vw,520px);width:max-content;display:flex;gap:12px;align-items:center;padding:11px 14px;border:1px solid #9d72bb;border-radius:15px;background:#24192f;color:#f9e9ff;box-shadow:0 6px 25px #0009;font-size:14px;line-height:1.4}
 #ups-lifebloom-chat-notice button{background:transparent;color:inherit;border:0;font-size:23px;cursor:pointer}
 .lb-live-hero{margin:10px 0;padding:12px;border:1px solid #775181;border-radius:14px;background:#2a1932;color:#f3dff1;line-height:1.45}
+
+/* LifeBloom 0.5.3: compact narrative dashboard */
+#ups_tab_lifebloom .lb-story-glance{margin:5px 0 7px;border:1px solid rgba(210,154,223,.27);border-radius:13px;background:linear-gradient(120deg,rgba(79,37,82,.27),rgba(22,30,48,.35));overflow:hidden}
+#ups_tab_lifebloom .lb-glance-status{display:flex;flex-wrap:wrap;gap:5px 12px;padding:8px 11px;color:#f3e4f4;font-size:12px;line-height:1.4}
+#ups_tab_lifebloom .lb-glance-status span{flex:1 1 125px;min-width:0;overflow-wrap:anywhere}
+#ups_tab_lifebloom .lb-glance-whisper{border-top:1px solid rgba(210,154,223,.15);font-size:12px}
+#ups_tab_lifebloom .lb-glance-whisper summary{cursor:pointer;list-style:none;padding:7px 11px;color:#efcce8;display:flex;justify-content:space-between}
+#ups_tab_lifebloom .lb-glance-whisper summary::-webkit-details-marker{display:none}
+#ups_tab_lifebloom .lb-glance-whisper[open] summary span{transform:rotate(180deg)}
+#ups_tab_lifebloom .lb-glance-whisper>div{padding:0 11px 10px;font-style:italic;line-height:1.45;overflow-wrap:anywhere}
+#ups_tab_lifebloom .lb-live-phase{margin:5px 0 7px!important;padding:6px 9px!important;font-size:11px!important}
+#ups_tab_lifebloom .lb-circle{margin-top:7px!important}

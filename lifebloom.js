@@ -121,7 +121,27 @@ ${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h
  const avatarPosition=root.querySelector('.lb-position');if(avatarPosition)settings.append(avatarPosition);
  const upload=root.querySelector('.lb-upload');if(upload)settings.append(upload);
  const clear=root.querySelector('#lb_avatarClear');if(clear)settings.append(clear);
- [...root.querySelectorAll('.lb-card')].forEach(card=>settings.append(card));
+ // Keep narrative cards on the beautiful dashboard, not in the technical settings.
+ const wellbeing=root.querySelector('.lb-wellbeing');
+ const whisper=root.querySelector('.lb-whisper');
+ [...root.querySelectorAll('.lb-card')].forEach(card=>{if(card!==wellbeing&&card!==whisper)settings.append(card);});
+ const liveDetails=document.createElement('section');liveDetails.className='lb-story-glance';
+ if(wellbeing){
+   const desire=d.heroLive?.desire||'';
+   const physical=d.heroLive?.physical||'';
+   wellbeing.remove();
+   const fields=[desire?`<span>💗 ${esc(desire)}</span>`:'',physical?`<span>🌷 ${esc(physical)}</span>`:''].filter(Boolean);
+   const status=document.createElement('div');status.className='lb-glance-status';status.innerHTML=fields.join('');
+   liveDetails.append(status);
+ }
+ if(whisper){
+   whisper.remove();
+   const note=document.createElement('details');note.className='lb-glance-whisper';
+   note.innerHTML=`<summary>💌 Шёпот истории <span>⌄</span></summary><div>${esc(d.whisper)}</div>`;
+   liveDetails.append(note);
+ }
+ if(liveDetails.children.length)statsEl?.after(liveDetails);
+
  root.append(settings);
  const circle=document.createElement('section');circle.className='lb-circle';
  const visible=people.filter(p=>p.visible!==false);
@@ -147,7 +167,7 @@ ${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h
   }catch(e){alert('Не удалось загрузить портрет: '+e.message);}finally{URL.revokeObjectURL(url);}
  });
  registry.querySelectorAll('[data-person-edit]').forEach(el=>el.onclick=()=>{const x=load(),p=(x.people||[]).find(p=>p.id===el.dataset.personEdit);if(!p)return;const mood=prompt('Настроение (можно с эмодзи)',p.mood||'');if(mood===null)return;const thought=prompt('Короткая мысль о Ханаби / её семье',p.thought||'');if(thought===null)return;p.mood=mood.slice(0,100);p.thought=thought.slice(0,220);p.liveNote=false;save(x);render();});
- const phase=document.createElement('div');phase.className='lb-live-phase';phase.textContent=fertility(d);
+ const phase=document.createElement('div');phase.className='lb-live-phase';phase.textContent=(()=>{const full=fertility(d);const match=full.match(/(?:🌸|🐺 Омегаверс · )(.+?) · день (\d+\/\d+)/);return match?`🌙 ${match[1]} · ${match[2]}`:full;})();
  statsEl?.after(phase);
  // No redundant help text in the display-only dashboard.
  if(!d.cycleDay && !(d.rpDate && d.cycleStart))phase.hidden=true;
