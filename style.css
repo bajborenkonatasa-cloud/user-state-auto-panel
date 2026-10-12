@@ -261,3 +261,23 @@
 #ups_tab_lifebloom .lb-advanced .lb-field{margin-top:6px}
 #ups_tab_lifebloom .lb-position{gap:2px 5px!important}
 #ups_tab_lifebloom .lb-position input{width:52px!important}
+
+/* LifeBloom 0.3 — beautiful overview, editing controls in drawer */
+#ups_tab_lifebloom .lb-toolbar{display:flex;justify-content:space-between;align-items:center;padding:5px 3px 10px;color:#e6c8f1;font-size:12px;letter-spacing:.06em}
+#ups_tab_lifebloom .lb-toolbar>div{display:flex;gap:7px}
+#ups_tab_lifebloom .lb-toolbar button,#ups_tab_lifebloom .lb-settings-header button{background:rgba(255,255,255,.07);color:inherit;border:1px solid rgba(222,177,246,.27);border-radius:11px;padding:6px 11px;font-size:17px}
+#ups_tab_lifebloom .lb-settings[hidden]{display:none!important}
+#ups_tab_lifebloom .lb-settings{margin-top:12px;border-top:1px solid rgba(255,255,255,.16);padding-top:12px}
+#ups_tab_lifebloom .lb-settings-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+#ups_tab_lifebloom .lb-settings>.lb-position{display:flex!important;margin:10px 0!important;gap:10px!important}
+#ups_tab_lifebloom .lb-settings>.lb-position input{width:70px!important}
+#ups_tab_lifebloom .lb-hero .lb-muted{margin:4px 0!important}
+#ups_tab_lifebloom .lb-hero{padding:14px!important}
+#ups_tab_lifebloom .lb-avatar{width:112px!important;height:112px!important;min-width:112px!important;overflow:hidden!important;border-radius:50%!important}
+#ups_tab_lifebloom .lb-avatar img{transform:none!important;object-fit:cover!important;object-position:var(--ax,50%) var(--ay,30%)!important}
+#ups_tab_lifebloom .lb-live-phase{border:1px solid rgba(231,198,255,.19);border-radius:13px;padding:13px;margin:12px 0 6px;background:rgba(255,255,255,.035);font-size:13px;line-height:1.55}
+#ups_tab_lifebloom .lb-live-note{font-size:11px;opacity:.7;text-align:center;padding:6px 0 12px}
+#ups_tab_lifebloom[data-lb-theme=moon]{--lb-accent:#8ccde8;filter:hue-rotate(22deg)}
+#ups_tab_lifebloom[data-lb-theme=rose]{--lb-accent:#f3a4bd;filter:hue-rotate(-28deg)}
+#ups_tab_lifebloom[data-lb-theme=minimal] .lb-hero,#ups_tab_lifebloom[data-lb-theme=minimal] .lb-live-phase{background:#191922!important;box-shadow:none!important}
+@media(max-width:520px){#ups_tab_lifebloom .lb-avatar{width:94px!important;height:94px!important;min-width:94px!important}}

@@ -23,6 +23,35 @@ function render(){const root=document.getElementById('ups_tab_lifebloom');if(!ro
 <div class="lb-card"><h3>🩷 Материнство</h3><label class="lb-field"><span>Состояние</span><select id="lb_status"><option value="none">Не указано</option><option value="pregnant">Беременна</option><option value="postpartum">После родов</option><option value="other">Другое</option></select></label><div class="lb-grid">${input('week','Неделя беременности',d.week,'number')}${input('due','Предполагаемая дата родов',d.due,'date')}</div><div class="lb-grid">${input('gestation','Срок беременности (недель)',d.gestation,'number')}${input('babies','Количество малышей',d.babies,'number')}</div>${input('partner','Отец / партнёр',d.partner)}<details class="lb-advanced"><summary>Дополнительные сведения (необязательно)</summary><label class="lb-field"><span>Сюжетные особенности, симптомы или пожелания</span><textarea id="lb_notes" rows="2">${esc(d.notes)}</textarea></label></details><button class="lb-btn lb-primary" id="lb_save">💾 Сохранить изменения</button></div>
 <div class="lb-card"><h3>🧸 Мои дети <span class="lb-count">${d.children.length}</span></h3><div id="lb_children">${d.children.length?d.children.map((c,i)=>`<div class="lb-child"><span>✦ <b>${esc(c.name||'Без имени')}</b><small>${esc([c.sex,c.birthday,c.father].filter(Boolean).join(' · '))}</small></span><button data-del="${i}" title="Удалить">✕</button></div>`).join(''):'<div class="lb-muted">Пока нет записей. Добавь ребёнка вручную.</div>'}</div><div class="lb-grid">${input('childName','Имя ребёнка')}${input('childSex','Пол')}</div><div class="lb-grid">${input('childBirth','Дата рождения','', 'date')}${input('childFather','Отец')}</div><button class="lb-btn" id="lb_add">＋ Добавить ребёнка</button></div>
 <div class="lb-card"><h3>🔎 События из ролевой</h3><label class="lb-switch"><input id="lb_auto" type="checkbox" ${d.auto?'checked':''}> Анализировать новые сообщения без запросов к модели</label><div class="lb-muted">Распознавание осторожное: найденное событие остаётся предложением и никогда не меняет семейную историю без подтверждения.</div><button class="lb-btn" id="lb_scan">↻ Просмотреть доступную историю</button><div class="lb-muted">${d.lastScanned} сообщений просмотрено · ${d.candidates.length} предложений</div><div id="lb_candidates">${d.candidates.slice(-15).reverse().map(c=>`<div class="lb-event"><div class="lb-overline">${c.type==='pregnancy'?'ВОЗМОЖНАЯ БЕРЕМЕННОСТЬ':c.type==='birth'?'ВОЗМОЖНЫЕ РОДЫ':'СЕМЕЙНОЕ СОБЫТИЕ'} · сообщение ${c.index+1}</div><div>${esc(c.excerpt)}</div><button class="lb-btn" data-dismiss="${esc(c.id)}">Проверено · убрать</button></div>`).join('')}</div></div><div class="lb-muted">🛡️ Отклонённые находки больше не появляются при повторном сканировании. Автоматическое подтверждение отключено.</div><div class="lb-muted">🔒 Данные остаются в локальном хранилище браузера. LifeBloom 0.5 не отправляет их модели.</div>`;
+ // LifeBloom 0.3: visual dashboard and separate settings drawer. Existing handlers remain intact.
+ const hero=root.querySelector('.lb-hero');
+ const statsEl=root.querySelector('.lb-stats');
+ const heading=root.querySelector('.ups_section_kicker');
+ const intro=root.querySelector('.ups_intro');
+ if(intro)intro.remove();
+ const dashboard=document.createElement('div');dashboard.className='lb-dashboard';
+ const toolbar=document.createElement('div');toolbar.className='lb-toolbar';
+ toolbar.innerHTML='<span>✦ Личная история</span><div><button type="button" id="lb_help" title="Информация">ⓘ</button><button type="button" id="lb_settings" title="Настройки">⚙</button></div>';
+ heading?.after(toolbar);
+ const settings=document.createElement('div');settings.className='lb-settings';settings.hidden=true;
+ const settingsHeader=document.createElement('div');settingsHeader.className='lb-settings-header';settingsHeader.innerHTML='<b>⚙ Настройки LifeBloom</b><button type="button" id="lb_settingsClose">✕</button>';
+ const themeRow=document.createElement('label');themeRow.className='lb-field';themeRow.innerHTML='<span>Тема оформления</span><select id="lb_theme"><option value="hanabi">💜 Hanabi</option><option value="moon">🌙 Лунная</option><option value="rose">🌸 Розовая</option><option value="minimal">✧ Минимализм</option></select>';
+ settings.append(settingsHeader,themeRow);
+ const avatarPosition=root.querySelector('.lb-position');if(avatarPosition)settings.append(avatarPosition);
+ const upload=root.querySelector('.lb-upload');if(upload)settings.append(upload);
+ const clear=root.querySelector('#lb_avatarClear');if(clear)settings.append(clear);
+ [...root.querySelectorAll('.lb-card')].forEach(card=>settings.append(card));
+ root.append(settings);
+ const phase=document.createElement('div');phase.className='lb-live-phase';phase.textContent=fertility(d);
+ statsEl?.after(phase);
+ const note=document.createElement('div');note.className='lb-live-note';note.textContent='✧ Сюжетная история под твоим контролем. Настройки и ручные правки — в ⚙';phase.after(note);
+ const setSettings=(open)=>{settings.hidden=!open;root.classList.toggle('lb-editing',open);};
+ toolbar.querySelector('#lb_settings').onclick=()=>setSettings(true);
+ settingsHeader.querySelector('#lb_settingsClose').onclick=()=>setSettings(false);
+ toolbar.querySelector('#lb_help').onclick=()=>alert('LifeBloom хранит данные отдельно для каждого чата. Расчёты выполняются локально без запросов к модели. Сюжетная дата задаётся вручную, события из чата требуют подтверждения. Все поля редактируются в ⚙.');
+ const themeSelect=themeRow.querySelector('select');themeSelect.value=d.theme||'hanabi';
+ const applyTheme=v=>{root.dataset.lbTheme=v;};applyTheme(themeSelect.value);
+ themeSelect.onchange=()=>{const x=load();x.theme=themeSelect.value;save(x);applyTheme(x.theme);};
  root.querySelector('#lb_status').value=d.status;root.querySelector('#lb_universe').value=d.universe||'standard';root.querySelector('#lb_contraception').value=d.contraception||'unspecified';
  root.querySelector('#lb_avatarFile').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>3*1024*1024)return alert('Выбери изображение до 3 МБ');const img=new Image();const url=URL.createObjectURL(file);try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});const canvas=document.createElement('canvas');const scale=Math.min(1,700/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);const x=load();x.avatar=canvas.toDataURL('image/jpeg',0.75);x.avatarX=50;x.avatarY=30;save(x);render();}catch{alert('Не удалось открыть изображение')}finally{URL.revokeObjectURL(url)}};
  for(const axis of ['X','Y'])root.querySelector('#lb_avatar'+axis).oninput=e=>{const x=load();x['avatar'+axis]=Number(e.target.value);save(x);root.querySelector('.lb-avatar').style.setProperty('--a'+axis.toLowerCase(),e.target.value+'%');};
