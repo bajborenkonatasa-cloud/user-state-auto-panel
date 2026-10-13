@@ -4,7 +4,7 @@ import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, e
 
 console.log('[User Persona Studio v4.1.5] module loaded');
 
-const VERSION = '4.1.6';
+const VERSION = '4.1.7';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -411,7 +411,7 @@ function renderProfileTab(){
     const play=make('button',{type:'button',id:'ups_mode_play',class:'ups_action'},'🎮 Я играю');
     const read=make('button',{type:'button',id:'ups_mode_read',class:'ups_action'},'📖 Читаю новеллу');
     play.addEventListener('click',()=>setNovelMode(false));
-    read.addEventListener('click',()=>setNovelMode(true));
+    read.addEventListener('click',()=>setNovelMode(!getData().novelMode));
     modeRow.append(play,read);
     mode.appendChild(modeRow);
     const next=make('button',{type:'button',id:'ups_novel_continue',class:'ups_action ups_primary ups_novel_continue'},'▶ Продолжить новеллу');
@@ -427,12 +427,16 @@ function renderProfileTab(){
 function setNovelMode(enabled){
     const d=getData();
     d.novelMode=!!enabled;
+    if(enabled && !d.autoInject){
+        d.autoInject=true;
+        const auto=el('ups_auto_inject'); if(auto)auto.checked=true;
+    }
     saveState(d);
     updateInjection(d);
     updatePreview(d);
     renderProfileStatus(d);
     renderStatus();
-    window.toastr?.info?.(enabled ? '📖 Режим новеллы включён.' : '🎮 Управление персоной возвращено тебе.');
+    window.toastr?.info?.(enabled ? '📖 Промпт новеллы включён для следующих запросов.' : '⚫ Промпт новеллы выключен.');
 }
 
 let novelContinueBusy = false;
@@ -491,9 +495,9 @@ function toggleFullProfileOnce(){
 
 function renderProfileStatus(d=loadState()){
     const play=el('ups_mode_play'), read=el('ups_mode_read'), status=el('ups_novel_mode_status');
-    if(play)play.classList.toggle('ups_selected',!d.novelMode);
-    if(read)read.classList.toggle('ups_selected',!!d.novelMode);
-    if(status)status.textContent=d.novelMode ? '📖 Модель ведёт всех персонажей, включая твою персону.' : '🎮 Персона под твоим управлением.';
+    if(play)play.classList.remove('ups_selected');
+    if(read)read.classList.toggle('ups_selected',!!d.novelMode && !!d.autoInject);
+    if(status)status.textContent=d.novelMode && d.autoInject ? '🟢 Промпт новеллы ВКЛ — добавится к следующему запросу.' : '⚫ Промпт новеллы ВЫКЛ — не отправляется.';
     const s=el('ups_profile_status');
     const b=el('ups_profile_once_btn');
     const active=!!d.fullProfileOnce && !!clean(d.fullProfile);
