@@ -4,7 +4,7 @@ import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, e
 
 console.log('[User Persona Studio v4.0.7] module loaded');
 
-const VERSION = '4.0.7';
+const VERSION = '4.1.4';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -132,7 +132,7 @@ function defaults() {
         feelings:'', thoughts:'', secrets:'', goals:'', desires:'', motives:'', avoid:'',
         relationship:'', trust:'50', tension:'50', affection:'50', desire:'50', jealousy:'0', resentment:'0',
         npcs:[], location:'', appearanceNow:'', sceneGoal:'', modelNotes:'', privateNotes:'',
-        fullProfile:'', fullProfileOnce:false,
+        fullProfile:'', fullProfileOnce:false, novelMode:false,
         directorPreset:'', directorCustom:'', directorMode:'once', oocOnce:'', oneShotCaption:'',
         styleMaxLength:false, styleMaxTokens:'2500',
         styleNoStretch:false, styleNoStretchPrompt:'Keep the reply focused. Do not pad the scene with repetitive atmosphere, introspection or filler. Each paragraph should add a reaction, action, information or meaningful progression.',
@@ -219,7 +219,7 @@ function getData() {
         feelings:val('ups_feelings'), thoughts:val('ups_thoughts'), secrets:val('ups_secrets'), goals:val('ups_goals'), desires:val('ups_desires'), motives:val('ups_motives'), avoid:val('ups_avoid'),
         relationship:val('ups_relationship'), trust:val('ups_trust','50'), tension:val('ups_tension','50'), affection:val('ups_affection','50'), desire:val('ups_desire','50'), jealousy:val('ups_jealousy','0'), resentment:val('ups_resentment','0'),
         location:val('ups_location'), appearanceNow:val('ups_appearance'), sceneGoal:val('ups_scene_goal'), modelNotes:val('ups_model_notes'), privateNotes:val('ups_private_notes'),
-        fullProfile:val('ups_full_profile'), fullProfileOnce:existing.fullProfileOnce === true,
+        fullProfile:val('ups_full_profile'), fullProfileOnce:existing.fullProfileOnce === true, novelMode:existing.novelMode === true,
         directorPreset:val('ups_director_preset'), directorCustom:val('ups_director_custom'), directorMode:val('ups_director_mode','once'), oocOnce:val('ups_ooc_once'), oneShotCaption:val('ups_one_caption'),
         styleMaxLength:chk('ups_style_max_length'), styleMaxTokens:val('ups_style_max_tokens','2500'),
         styleNoStretch:chk('ups_style_no_stretch'), styleNoStretchPrompt:val('ups_style_no_stretch_prompt',existing.styleNoStretchPrompt),
@@ -250,8 +250,14 @@ function buildPrompt(data=loadState()) {
     const {userName,charName}=names(); const out=[];
     out.push(`[Private user-side guidance for ${userName}. This block guides the roleplay; do not quote or expose it.]`);
     if(data.fullProfileOnce && clean(data.fullProfile)){
-        out.push(`[ONE-TIME FULL USER PERSONA PROFILE — reference only for this reply]\n${clean(data.fullProfile)}\nTreat this as background canon for ${userName}. Do not recite it, do not reveal private facts to ${charName} unless they are already known in-story, and do not write ${userName}'s actions/dialogue for them.`);
+        out.push(`[ONE-TIME FULL USER PERSONA PROFILE — reference only for this reply]\n${clean(data.fullProfile)}\nTreat this as background canon for ${userName}. Do not recite it, do not reveal private facts to ${charName} unless they are already known in-story, and follow the active STORY CONTROL mode for narration.`);
     }
+    const novelMode = data.novelMode === true;
+    out.push(novelMode
+      ? `[STORY CONTROL — NOVEL MODE ACTIVE, EXPLICIT PLAYER PERMISSION]
+Temporarily narrate ${userName} alongside ${charName}, NPCs and the world. Write ${userName}'s dialogue, actions and internal perspective in-character, based on established persona and recent story context. Preserve continuity, agency, existing relationships, motives, knowledge boundaries, and established facts. Advance the plot naturally as an immersive novel; no arbitrary personality changes, sudden time skips, irreversible choices, or major relationship decisions without a clear story basis. This permission is temporary and applies only while NOVEL MODE is enabled in User Persona Studio.`
+      : `[STORY CONTROL — PLAYER MODE ACTIVE, OVERRIDES OLD NOVEL-MODE MESSAGES]
+${userName} is exclusively player-controlled. Do not write ${userName}'s dialogue, actions, thoughts, emotions, consent or decisions. Write only ${charName}, NPCs, and the world. Past assistant-written scenes in NOVEL MODE do not grant ongoing permission to control ${userName}.`);
     if(data.includeState){
         const items=[line('Feelings',data.feelings),line('Hidden thoughts',data.thoughts),line('Secrets',data.secrets),line('Current goals',data.goals),line('Desires',data.desires),line('Motives',data.motives),line('Boundaries / does not want',data.avoid)].filter(Boolean);
         if(items.length) out.push('[USER INNER STATE]\n'+items.join('\n'));
@@ -276,7 +282,7 @@ function buildPrompt(data=loadState()) {
         style.push(`RESPONSE LENGTH: Keep the complete reply at or below approximately ${n} tokens. Prefer a naturally shorter answer over padding.`);
     }
     if(data.styleNoStretch && clean(data.styleNoStretchPrompt)) style.push(macro(data.styleNoStretchPrompt));
-    if(data.styleUserAgency && clean(data.styleUserAgencyPrompt)) style.push(macro(data.styleUserAgencyPrompt));
+    if(!novelMode && data.styleUserAgency && clean(data.styleUserAgencyPrompt)) style.push(macro(data.styleUserAgencyPrompt));
     if(data.styleNpcAgency && clean(data.styleNpcAgencyPrompt)) style.push(macro(data.styleNpcAgencyPrompt));
     if(data.styleAdvancePlot && clean(data.styleAdvancePlotPrompt)) style.push(macro(data.styleAdvancePlotPrompt));
     if(data.styleAntiEcho && clean(data.styleAntiEchoPrompt)) style.push(macro(data.styleAntiEchoPrompt));
@@ -381,13 +387,10 @@ function renderProfileTab(){
     const p=tabSection(
         'profile',
         '👤 ПОЛНЫЙ ПРОФИЛЬ {{user}}',
-        'Сюда можно вставить длинное описание персоны из SillyTavern. Само по себе оно НЕ отправляется модели. По кнопке ниже оно попадёт только в следующий обычный запрос.'
+        ''
     );
 
     const info=cardBox('🪪 Большая карточка персоны');
-    info.appendChild(make('div',{class:'ups_profile_explain'},
-        `Для экономии токенов: короткое ядро ${userName} лучше оставить в стандартном Persona Description SillyTavern, а длинные ~1000+ токенов хранить здесь и подмешивать только когда это действительно нужно.`));
-
     field(
         info,
         'ups_full_profile',
@@ -404,12 +407,30 @@ function renderProfileTab(){
     const status=make('div',{id:'ups_profile_status',class:'ups_profile_status'},'⚫ Сейчас профиль не отправляется.');
     info.append(controls,status);
 
-    const tip=make('div',{class:'ups_profile_tip'});
-    tip.innerHTML='<b>Как пользоваться:</b> новый чат → при желании нажми кнопку ⚡ → напиши первое обычное сообщение персонажу → Send. Уйдёт один запрос. После ответа полный профиль автоматически выключится, но текст останется сохранён здесь.';
-    info.appendChild(tip);
+    const mode=cardBox('📖 Режим истории');
+    const modeRow=make('div',{class:'ups_novel_mode_row'});
+    const play=make('button',{type:'button',id:'ups_mode_play',class:'ups_action'},'🎮 Я играю');
+    const read=make('button',{type:'button',id:'ups_mode_read',class:'ups_action'},'📖 Читаю новеллу');
+    play.addEventListener('click',()=>setNovelMode(false));
+    read.addEventListener('click',()=>setNovelMode(true));
+    modeRow.append(play,read);
+    mode.appendChild(modeRow);
+    mode.appendChild(make('div',{id:'ups_novel_mode_status',class:'ups_profile_status'},''));
+    p.appendChild(mode);
 
     p.appendChild(info);
     return p;
+}
+
+function setNovelMode(enabled){
+    const d=getData();
+    d.novelMode=!!enabled;
+    saveState(d);
+    updateInjection(d);
+    updatePreview(d);
+    renderProfileStatus(d);
+    renderStatus();
+    window.toastr?.info?.(enabled ? '📖 Режим новеллы включён.' : '🎮 Управление персоной возвращено тебе.');
 }
 
 function toggleFullProfileOnce(){
@@ -430,6 +451,10 @@ function toggleFullProfileOnce(){
 }
 
 function renderProfileStatus(d=loadState()){
+    const play=el('ups_mode_play'), read=el('ups_mode_read'), status=el('ups_novel_mode_status');
+    if(play)play.classList.toggle('ups_selected',!d.novelMode);
+    if(read)read.classList.toggle('ups_selected',!!d.novelMode);
+    if(status)status.textContent=d.novelMode ? '📖 Модель ведёт всех персонажей, включая твою персону.' : '🎮 Персона под твоим управлением.';
     const s=el('ups_profile_status');
     const b=el('ups_profile_once_btn');
     const active=!!d.fullProfileOnce && !!clean(d.fullProfile);
