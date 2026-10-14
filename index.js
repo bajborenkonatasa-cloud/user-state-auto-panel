@@ -2,9 +2,9 @@ import { setupLifeBloom, lifeBloomTab, refreshLifeBloom, onLifeBloomMessage, lif
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.1.5] module loaded');
+console.log('[User Persona Studio v4.1.8] module loaded');
 
-const VERSION = '4.1.7';
+const VERSION = '4.1.8';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -445,7 +445,7 @@ async function continueNovelOnce(){
     // Only use SillyTavern's public extension context. Never simulate a send
     // button click: that could accidentally submit the player's draft message.
     const context=ctx();
-    if(typeof context.generate !== 'function'){
+    if(typeof context.executeSlashCommandsWithOptions !== 'function' && typeof context.executeSlashCommands !== 'function'){
         window.toastr?.warning?.('Автопродолжение недоступно в этой версии SillyTavern. Включи «Читаю новеллу» и используй Continue в чате.');
         return;
     }
@@ -465,8 +465,14 @@ async function continueNovelOnce(){
         renderProfileStatus(d);
         renderStatus();
         el(PANEL_ID)?.classList.remove('ups_open');
-        // No new user message; ask the current ST chat to continue once.
-        await context.generate('continue');
+        // /trigger creates a normal character reply in chat. /continue merely extends
+        // the previous message and can fail to display when the last turn is not AI.
+        // Preserve any unsent user draft in the chat input.
+        if(typeof context.executeSlashCommandsWithOptions === 'function'){
+            await context.executeSlashCommandsWithOptions('/trigger');
+        }else{
+            await context.executeSlashCommands('/trigger');
+        }
     }catch(error){
         console.error('[User Persona Studio] novel continuation failed',error);
         window.toastr?.error?.('Не удалось запустить продолжение. Используй Continue в чате.');
