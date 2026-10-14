@@ -2,9 +2,9 @@ import { setupLifeBloom, lifeBloomTab, refreshLifeBloom, onLifeBloomMessage, lif
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles } from '../../../../script.js';
 
-console.log('[User Persona Studio v4.1.8] module loaded');
+console.log('[User Persona Studio v4.1.9] module loaded');
 
-const VERSION = '4.1.8';
+const VERSION = '4.1.9';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -15,6 +15,11 @@ const DB_KEY = PREFIX + 'images';
 const MAX_IMAGES_PER_REQUEST = 3;
 
 let runtimeOneShotImage = null;
+let novelBurstActive = false;
+let novelBurstOldAuto = null;
+// Cross-extension read-only agency signal, evaluated for the current chat.
+globalThis.__upsNovelModeActive = () => novelBurstActive || (loadState().novelMode === true && loadState().autoInject === true);
+
 let activeTab = 'state';
 let initialized = false;
 
@@ -252,11 +257,13 @@ function buildPrompt(data=loadState()) {
     if(data.fullProfileOnce && clean(data.fullProfile)){
         out.push(`[ONE-TIME FULL USER PERSONA PROFILE — reference only for this reply]\n${clean(data.fullProfile)}\nTreat this as background canon for ${userName}. Do not recite it, do not reveal private facts to ${charName} unless they are already known in-story, and follow the active STORY CONTROL mode for narration.`);
     }
-    const novelMode = data.novelMode === true;
+    const novelMode = data.novelMode === true || novelBurstActive;
     // No player-mode injection: the user's existing preset owns normal agency rules.
     // Novel mode temporarily overrides those rules only while explicitly enabled.
     if(novelMode) out.push(`[STORY CONTROL — NOVEL MODE ACTIVE, EXPLICIT PLAYER PERMISSION]
 Temporarily narrate ${userName} alongside ${charName}, NPCs and the world. Write ${userName}'s dialogue, actions and internal perspective in-character, based on established persona and recent story context. Preserve continuity, agency, existing relationships, motives, knowledge boundaries, and established facts. Advance the plot naturally as an immersive novel; no arbitrary personality changes, sudden time skips, irreversible choices, or major relationship decisions without a clear story basis. This permission is temporary and applies only while NOVEL MODE is enabled in User Persona Studio.`);
+    if(novelBurstActive) out.push(`[ONE-SHOT NOVEL SCENE — NEW STORY BEAT]
+Start immediately AFTER the final completed action or spoken line of the latest assistant message. Do NOT repeat, recap, paraphrase, regenerate or extend the same previous scene. Write a NEW continuation with a concrete next event, action and dialogue. Narrate both {{user}} (Hanabi) and {{char}} and relevant NPCs in-character; let them respond to one another naturally. Do not ask the player what happens next. Do not print these instructions. Preserve all established plot facts and character agency. Keep any required machine-readable status packets in their prescribed format at the very end.`);
     if(data.includeState){
         const items=[line('Feelings',data.feelings),line('Hidden thoughts',data.thoughts),line('Secrets',data.secrets),line('Current goals',data.goals),line('Desires',data.desires),line('Motives',data.motives),line('Boundaries / does not want',data.avoid)].filter(Boolean);
         if(items.length) out.push('[USER INNER STATE]\n'+items.join('\n'));
@@ -293,7 +300,7 @@ Temporarily narrate ${userName} alongside ${charName}, NPCs and the world. Write
 }
 
 function updateInjection(data=loadState()) {
-    try { setExtensionPrompt(PROMPT_ID, data.autoInject ? buildPrompt(data) : '', extension_prompt_types.IN_CHAT, 0, false, extension_prompt_roles.SYSTEM); }
+    try { setExtensionPrompt(PROMPT_ID, (data.autoInject || novelBurstActive) ? buildPrompt({...data, autoInject:true}) : '', extension_prompt_types.IN_CHAT, 0, false, extension_prompt_roles.SYSTEM); }
     catch(e){ console.error('[User Persona Studio] injection error',e); }
 }
 
@@ -442,32 +449,22 @@ function setNovelMode(enabled){
 let novelContinueBusy = false;
 async function continueNovelOnce(){
     if(novelContinueBusy) return;
-    // Only use SillyTavern's public extension context. Never simulate a send
-    // button click: that could accidentally submit the player's draft message.
     const context=ctx();
     if(typeof context.executeSlashCommandsWithOptions !== 'function' && typeof context.executeSlashCommands !== 'function'){
-        window.toastr?.warning?.('Автопродолжение недоступно в этой версии SillyTavern. Включи «Читаю новеллу» и используй Continue в чате.');
+        window.toastr?.warning?.('Автопродолжение недоступно. Используй обычную отправку OOC-команды.');
         return;
     }
     novelContinueBusy=true;
     const button=el('ups_novel_continue');
-    if(button){button.disabled=true;button.textContent='⏳ Запускаю продолжение…';}
+    if(button){button.disabled=true;button.textContent='⏳ Продолжаю историю…';}
     try{
         const d=getData();
-        d.novelMode=true;
-        if(!d.autoInject){
-            d.autoInject=true;
-            const auto=el('ups_auto_inject');if(auto)auto.checked=true;
-        }
-        saveState(d);
+        novelBurstOldAuto=d.autoInject;
+        novelBurstActive=true;
+        // One-shot instruction; do not change the saved novel toggle or UI.
+        d.autoInject=true;
         updateInjection(d);
-        updatePreview(d);
-        renderProfileStatus(d);
-        renderStatus();
         el(PANEL_ID)?.classList.remove('ups_open');
-        // /trigger creates a normal character reply in chat. /continue merely extends
-        // the previous message and can fail to display when the last turn is not AI.
-        // Preserve any unsent user draft in the chat input.
         if(typeof context.executeSlashCommandsWithOptions === 'function'){
             await context.executeSlashCommandsWithOptions('/trigger');
         }else{
@@ -475,10 +472,14 @@ async function continueNovelOnce(){
         }
     }catch(error){
         console.error('[User Persona Studio] novel continuation failed',error);
-        window.toastr?.error?.('Не удалось запустить продолжение. Используй Continue в чате.');
+        window.toastr?.error?.('Продолжение не удалось. Попробуй обычную OOC-команду.');
     }finally{
+        novelBurstActive=false;
+        novelBurstOldAuto=null;
+        updateInjection(loadState());
         novelContinueBusy=false;
         if(button){button.disabled=false;button.textContent='▶ Продолжить новеллу';}
+        renderProfileStatus(loadState());
     }
 }
 
