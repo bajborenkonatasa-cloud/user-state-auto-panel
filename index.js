@@ -4,7 +4,7 @@ import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, e
 
 console.log('[User Persona Studio v4.1.9] module loaded');
 
-const VERSION = '4.1.9';
+const VERSION = '4.1.10';
 const PREFIX = 'user_persona_studio_v4_';
 const CARDS_KEY = PREFIX + 'cards';
 const GLOBAL_KEY = PREFIX + 'global';
@@ -174,7 +174,7 @@ function loadState() {
     try {
         const chatData = JSON.parse(localStorage.getItem(chatKey()) || '{}');
         const profileData = JSON.parse(localStorage.getItem(profileKey()) || '{}');
-        return { ...defaults(), ...chatData, fullProfile: profileData.fullProfile ?? chatData.fullProfile ?? '' };
+        return { ...defaults(), ...chatData, fullProfile: profileData.fullProfile ?? '' };
     } catch {
         return defaults();
     }
@@ -779,16 +779,33 @@ function togglePanel(){
     }
 }
 function refreshForChat(){setTimeout(()=>{refreshLifeBloom();if(el(PANEL_ID)){refreshDynamicNames();setValues(loadState());renderCards();renderShowQueue();renderProfileStatus(loadState());}updateInjection(loadState());},350);}
+// SillyTavern may switch user personas without firing CHAT_CHANGED.
+// Observe the active persona name, and refresh the visible profile immediately.
+let lastUpsPersonaName = null;
+function watchPersonaSwitch(){
+    const current = names().userName;
+    if(lastUpsPersonaName === null){lastUpsPersonaName=current;return;}
+    if(current === lastUpsPersonaName)return;
+    lastUpsPersonaName=current;
+    // Every edit is persisted on input, so never save the previous textarea
+    // after a persona switch: that would overwrite the new persona's profile.
+    if(el(PANEL_ID))setValues(loadState());
+    updateInjection(loadState());
+}
+
 
 function bindEventsOnce(){
     if(globalThis.__ups4_events_bound) return;
     globalThis.__ups4_events_bound=true;
     eventSource.on(event_types.CHAT_CHANGED,refreshForChat);
+    if(event_types.USER_NAME_CHANGED)eventSource.on(event_types.USER_NAME_CHANGED,watchPersonaSwitch);
+    if(!globalThis.__ups4_persona_watch)globalThis.__ups4_persona_watch=setInterval(watchPersonaSwitch,500);
     eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));
     eventSource.on(event_types.MESSAGE_RECEIVED,()=>{setTimeout(onLifeBloomMessage,300);setTimeout(onLifeBloomMessage,1300);setTimeout(clearOneShotAfterReply,50);});
 }
 function init(){
     setupLifeBloom({ids,names,ctx});
+    lastUpsPersonaName = names().userName;
     // Важно: кнопку рисуем первой. Даже если одна из новых вкладок упадёт,
     // пользователь всё равно увидит 💜 и повторный запуск сможет восстановиться.
     renderTopButton();
