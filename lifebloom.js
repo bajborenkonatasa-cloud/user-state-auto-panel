@@ -95,31 +95,62 @@ function updateLive(d, recent=false){
 }
 function daysBetween(a,b){const x=new Date(a+'T12:00:00'),y=new Date(b+'T12:00:00');return Number.isFinite(+x)&&Number.isFinite(+y)?Math.round((y-x)/86400000):null;}
 function addDays(s,n){const d=new Date(s+'T12:00:00');if(!Number.isFinite(+d))return '';d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
-// Story-time sync: consume each chat message once. Never use the device clock.
+// Story clock follows explicit narrated transitions, not the device clock.
+function storyDelta(raw){
+ const text=String(raw||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ');
+ const numbers={один:1,одна:1,одну:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10};
+ const unitDays=u=>/^д|^сут/i.test(u)?1:/^нед/i.test(u)?7:/^месяц|^месяц|^мес/i.test(u)?30:365;
+ const re=/(?:спустя|прошл[ои]|прошло|минул[ои]|пролетел[ои]|истекл[ои]|через|по\s+прошествии)\s+(\d{1,3}|один|одна|одну|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(день|дня|дней|сутки|суток|неделю|недели|недель|месяц|месяца|месяцев|год|года|лет)|(?:на\s+следующ(?:ий|ее)\s+(?:день|утро)|следующ(?:им|ее)\s+(?:днём|утром)|день\s+спустя)/giu;
+ let last=null,match;
+ while((match=re.exec(text))){
+  const before=text.slice(Math.max(0,match.index-65),match.index);
+  if(/(?:если|возможно|может|планир|собира|хочет|мечта|представ|будет|могл[аои]? бы|не прошло|не прошло и)/iu.test(before))continue;
+  const n=match[1]?(Number(match[1])||numbers[match[1].toLowerCase()]):1;
+  const days=n*(match[2]?unitDays(match[2]):1);
+  if(days>0&&days<=36500)last=days;
+ }
+ return last;
+}
+function currentCycleDay(d){
+ const len=Math.max(20,Math.min(45,Number(d.cycleLength)||28));
+ if(d.rpDate&&d.cycleStart){const diff=daysBetween(d.cycleStart,d.rpDate);if(diff!==null&&diff>=0)return diff%len+1;}
+ const day=Number(d.cycleDay);return day>0?((day-1)%len)+1:null;
+}
+function refreshStoryAlerts(d){
+ const day=currentCycleDay(d),len=Math.max(20,Math.min(45,Number(d.cycleLength)||28));
+ if(!day||d.status==='pregnant')return;
+ const ov=Math.max(1,len-14),toPeriod=(len-day+1)%len;
+ const messages=[];
+ if(day===ov)messages.push('🌸 Сегодня ориентировочный день овуляции (сюжет).');
+ if(day===ov-3)messages.push('🌸 Примерно через 3 дня овуляция (сюжет).');
+ if(toPeriod===3)messages.push('🌙 Примерно через 3 дня ожидаются месячные (сюжет).');
+ if(day===1)messages.push('🌙 Начало нового условного цикла.');
+ const stamp=(d.rpDate||'без даты')+':'+day+':'+d.status;
+ for(const body of messages){const id='cycle:'+stamp+':'+body;if((d.alertHistory||[]).includes(id))continue;
+  d.alertHistory=[...(d.alertHistory||[]),id].slice(-120);
+  d.notices=[...(d.notices||[]),{id,body}].slice(-25);d.unreadNotice=id;
+ }
+}
 function syncStoryTime(d){
  const chat=env.ctx()?.chat||[];
  let cursor=Number.isInteger(d.timeScanCursor)?d.timeScanCursor:Math.max(0,chat.length-12);
- if(cursor>chat.length)cursor=0; // chat was edited or truncated
+ if(cursor>chat.length)cursor=0;
  let changed=false;
- const nums={'один':1,'одна':1,'два':2,'две':2,'три':3,'четыре':4,'пять':5,'шесть':6,'семь':7,'восемь':8,'девять':9,'десять':10};
  for(let i=cursor;i<chat.length;i++){
   const m=chat[i];if(!m||m.is_system)continue;
-  const raw=String(m.mes||'').replace(/<[^>]*>/g,' ').slice(0,30000);
-  // Only explicit time transitions, not forecasts or hypotheticals.
-  const re=/(?:прошл[ои]|спустя|через|минул[ои]|пролетел[ои]|истекл[ои]|прошло ровно)\s+(\d{1,3}|один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(дн(?:я|ей|ь)|сут(?:ки|ок)|недел(?:ю|и|ь)|месяц(?:а|ев)?)/iu;
-  const hit=raw.match(re);if(!hit)continue;
-  const prefix=raw.slice(Math.max(0,hit.index-55),hit.index);
-  if(/(?:если|может|возможно|планиру|будет|через некоторое время может|представь)/iu.test(prefix))continue;
-  const n=Number(hit[1])||nums[hit[1].toLowerCase()]||0;
-  const unit=hit[2].toLowerCase();const delta=n*(unit.startsWith('недел')?7:unit.startsWith('месяц')?30:1);
-  if(delta<1||delta>365)continue;
-  if(d.rpDate){d.rpDate=addDays(d.rpDate,delta);}
+  const raw=String(m.mes||'').slice(0,30000);
+  const delta=storyDelta(raw);
+  if(!delta)continue;
+  // Never count the same time jump twice when user and character repeat it.
+  const fingerprint=raw.replace(/<[^>]*>/g,' ').trim().slice(0,250);
+  if(d.lastTimeSkip?.fingerprint===fingerprint)continue;
+  if(d.rpDate)d.rpDate=addDays(d.rpDate,delta);
   else if(d.cycleDay){const len=Math.max(20,Math.min(45,Number(d.cycleLength)||28));d.cycleDay=String((Number(d.cycleDay)-1+delta)%len+1);}
   else continue;
-  d.lastTimeSkip={days:delta,message:i};changed=true;
+  d.lastTimeSkip={days:delta,message:i,fingerprint};changed=true;
  }
  if(d.timeScanCursor!==chat.length){d.timeScanCursor=chat.length;changed=true;}
- if(changed)save(d);
+ if(changed){refreshStoryAlerts(d);save(d);}
  return changed;
 }
 function pregnancyMetrics(d){if(d.status!=='pregnant'||!d.conceptionDate||!d.rpDate)return null;const elapsed=daysBetween(d.conceptionDate,d.rpDate);if(elapsed===null||elapsed<0)return null;const gest=Math.max(20,Math.min(60,Number(d.gestation)||40));return {weeks:Math.floor((elapsed+14)/7),days:(elapsed+14)%7,due:addDays(d.conceptionDate,gest*7-14)};}
@@ -207,7 +238,7 @@ ${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h
  for(const axis of ['X','Y'])root.querySelector('#lb_avatar'+axis).oninput=e=>{const x=load();x['avatar'+axis]=Number(e.target.value);save(x);root.querySelector('.lb-avatar').style.setProperty('--a'+axis.toLowerCase(),e.target.value+'%');};
  root.querySelector('#lb_avatarZoom').oninput=e=>{const x=load();x.avatarZoom=Number(e.target.value);save(x);root.querySelector('.lb-avatar').style.setProperty('--az',x.avatarZoom/100);};
  root.querySelector('#lb_avatarClear').onclick=()=>{const x=load();x.avatar='';save(x);render();};
- root.querySelector('#lb_save').onclick=()=>{const x=load();for(const f of ['rpLabel','rpDate','cycleDay','cycleLength','cycleStart','week','due','gestation','babies','partner','notes','conceptionDate'])x[f]=root.querySelector('#lb_'+f).value;x.status=root.querySelector('#lb_status').value;const outcome=root.querySelector('#lb_pregnancyOutcome').value;if(outcome){if(!confirm('Подтвердить изменение беременности? Запись будет сохранена в истории сюжета.'))return;x.pregnancyOutcome=outcome;x.status='none';x.week='';x.due='';x.conceptionDate='';}x.universe=root.querySelector('#lb_universe').value;x.contraception=root.querySelector('#lb_contraception').value;save(x);render();};
+ root.querySelector('#lb_save').onclick=()=>{const x=load();for(const f of ['rpLabel','rpDate','cycleDay','cycleLength','cycleStart','week','due','gestation','babies','partner','notes','conceptionDate'])x[f]=root.querySelector('#lb_'+f).value;x.status=root.querySelector('#lb_status').value;const outcome=root.querySelector('#lb_pregnancyOutcome').value;if(outcome){if(!confirm('Подтвердить изменение беременности? Запись будет сохранена в истории сюжета.'))return;x.pregnancyOutcome=outcome;x.status='none';x.week='';x.due='';x.conceptionDate='';}x.universe=root.querySelector('#lb_universe').value;x.contraception=root.querySelector('#lb_contraception').value;if(!x.timeScanCursor)x.timeScanCursor=(env.ctx()?.chat||[]).length;refreshStoryAlerts(x);save(x);render();};
  root.querySelector('#lb_add').onclick=()=>{const x=load(),name=root.querySelector('#lb_childName').value.trim();if(!name)return alert('Укажи имя ребёнка');x.children.push({name,sex:root.querySelector('#lb_childSex').value,birthday:root.querySelector('#lb_childBirth').value,father:root.querySelector('#lb_childFather').value,description:root.querySelector('#lb_childDescription').value,personality:root.querySelector('#lb_childPersonality').value});save(x);render();};
  root.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('Удалить запись о ребёнке?'))return;const x=load();x.children.splice(Number(b.dataset.del),1);save(x);render();});
  root.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>{const x=load();x.candidates=x.candidates.filter(c=>c.id!==b.dataset.dismiss);x.dismissed=[...(x.dismissed||[]),b.dataset.dismiss].slice(-500);save(x);render();});
