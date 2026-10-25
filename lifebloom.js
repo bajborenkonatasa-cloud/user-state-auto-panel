@@ -106,19 +106,48 @@ function daysBetween(a,b){const x=new Date(a+'T12:00:00'),y=new Date(b+'T12:00:0
 function addDays(s,n){const d=new Date(s+'T12:00:00');if(!Number.isFinite(+d))return '';d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
 // Story clock follows explicit narrated transitions, not the device clock.
 function storyDelta(raw){
- const text=String(raw||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ');
+ const text=String(raw||'').replace(/<!--\s*LIFEBLOOM[\s\S]*?-->/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ');
  const numbers={один:1,одна:1,одну:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10};
- const unitDays=u=>/^д|^сут/i.test(u)?1:/^нед/i.test(u)?7:/^месяц|^месяц|^мес/i.test(u)?30:365;
- const re=/(?:спустя|прошл[ои]|прошло|минул[ои]|пролетел[ои]|истекл[ои]|через|по\s+прошествии)\s+(\d{1,3}|один|одна|одну|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(день|дня|дней|сутки|суток|неделю|недели|недель|месяц|месяца|месяцев|год|года|лет)|(?:на\s+следующ(?:ий|ее)\s+(?:день|утро)|следующ(?:им|ее)\s+(?:днём|утром)|день\s+спустя)/giu;
+ const unitDays=u=>/^д|^сут/i.test(u)?1:/^нед/i.test(u)?7:/^мес/i.test(u)?30:365;
+ const re=/(?:спустя|прошл[ои]|прошло|минул[ои]|пролетел[ои]|истекл[ои]|через|по\s+прошествии)\s+(\d{1,3}|один|одна|одну|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(день|дня|дней|сутки|суток|неделю|недели|недель|месяц|месяца|месяцев|год|года|лет)|(?:на\s+следующ(?:ий|ее)\s+(?:день|утро)|следующ(?:им|ее)\s+(?:днём|утром)|день\s+спустя|наутро|на\s+следующее\s+утро|наступил\s+новый\s+день|прошла\s+ночь)/giu;
  let last=null,match;
  while((match=re.exec(text))){
   const before=text.slice(Math.max(0,match.index-65),match.index);
-  if(/(?:если|возможно|может|планир|собира|хочет|мечта|представ|будет|могл[аои]? бы|не прошло|не прошло и)/iu.test(before))continue;
+  if(/(?:если|возможно|может|планир|собира|хочет|мечта|представ|будет|могл[аои]? бы|не прошло)/iu.test(before))continue;
   const n=match[1]?(Number(match[1])||numbers[match[1].toLowerCase()]):1;
   const days=n*(match[2]?unitDays(match[2]):1);
   if(days>0&&days<=36500)last=days;
  }
  return last;
+}
+function messageStoryDate(raw){
+ const text=String(raw||'');
+ const tagged=text.match(/\[RP_DATE[:\s]+(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./]\d{1,2}[./]\d{4})/i);
+ if(tagged)return normalizeDate(tagged[1]);
+ // Only explicit scene date markers, not arbitrary dates mentioned in dialogue.
+ const labelled=text.match(/(?:дата\s+(?:ролевой|истории|сцены)|story\s*date)\s*[:—-]\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[./]\d{1,2}[./]\d{4})/i);
+ return labelled?normalizeDate(labelled[1]):'';
+}
+// Extract a scene date from the decorated roleplay header, including HTML text.
+function bannerStoryDate(raw){
+ const t=String(raw||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ');
+ const m=t.match(/(?:^|[\s📅🗓])(?:[📅🗓]\s*)?(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(\d{4})\s*(?:г\.?|\||[·,])/iu);
+ if(!m)return '';
+ const months=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+ return validDate(+m[3],months.indexOf(m[2].toLowerCase())+1,+m[1]);
+}
+function notifyOnce(d,id,body){if((d.alertHistory||[]).includes(id))return;d.alertHistory=[...(d.alertHistory||[]),id].slice(-200);d.notices=[...(d.notices||[]),{id,body}].slice(-35);d.unreadNotice=id;}
+function registerIntimacy(d,date,source='manual'){
+ if(!date)return false;
+ const id='exposure:'+date;
+ if((d.exposures||[]).some(x=>x.id===id))return false;
+ const day=currentCycleDay(d),len=cycleLength(d),ov=len-14;
+ d.exposures=[...(d.exposures||[]),{id,date,day,possible:day!==null&&day>=ov-5&&day<=ov+1,source,result:'pending'}].slice(-50);
+ notifyOnce(d,id,'🌸 Событие близости записано. Через 14 сюжетных дней станет доступна проверка тестом; беременность не устанавливается автоматически.');return true;
+}
+function refreshPregnancyChecks(d){
+ if(!d.rpDate||d.status==='pregnant')return;
+ for(const x of d.exposures||[]){if(x.result!=='pending')continue;const elapsed=daysBetween(x.date,d.rpDate);if(elapsed!==null&&elapsed>=14)notifyOnce(d,'test:'+x.id,'🧪 Прошло 14 сюжетных дней после близости ('+x.date+'). Можно провести сюжетный тест и записать результат вручную.');}
 }
 function currentCycleDay(d){
  const len=cycleLength(d);
@@ -141,26 +170,36 @@ function refreshStoryAlerts(d){
   d.notices=[...(d.notices||[]),{id,body}].slice(-25);d.unreadNotice=id;
  }
 }
+function advanceStoryDays(d,days){
+ const len=cycleLength(d);
+ if(d.cycleDay && Number(d.cycleDay)>0)d.cycleDay=String(((Number(d.cycleDay)-1+days)%len+len)%len+1);
+ if(d.rpDate)d.rpDate=addDays(d.rpDate,days);
+ refreshPregnancyChecks(d);
+ if(d.cycleStart && d.rpDate && d.cycleDay)d.cycleStart=addDays(d.rpDate,-(Number(d.cycleDay)-1));
+}
 function syncStoryTime(d){
  const chat=env.ctx()?.chat||[];
- let cursor=Number.isInteger(d.timeScanCursor)?d.timeScanCursor:Math.max(0,chat.length-12);
- if(cursor>chat.length)cursor=0;
+ let cursor=Number.isInteger(d.timeScanCursor)?d.timeScanCursor:chat.length;
+ if(cursor>chat.length)cursor=chat.length; // Don't replay old time skips after chat edits.
  let changed=false;
  for(let i=cursor;i<chat.length;i++){
   const m=chat[i];if(!m||m.is_system)continue;
   const raw=String(m.mes||'').slice(0,30000);
-  const delta=storyDelta(raw);
+  const date=messageStoryDate(raw)||bannerStoryDate(raw);
+  let delta=null;
+  if(date && d.rpDate){const difference=daysBetween(d.rpDate,date);if(difference!==null&&difference>0&&difference<=36500)delta=difference;}
+  else if(date && !d.rpDate){d.rpDate=date;changed=true;}
+  if(delta===null && !date)delta=storyDelta(raw);
   if(!delta)continue;
-  // Never count the same time jump twice when user and character repeat it.
+  // A model may repeat the user's previous time skip in its reply.
   const fingerprint=raw.replace(/<[^>]*>/g,' ').trim().slice(0,250);
-  if(d.lastTimeSkip?.fingerprint===fingerprint)continue;
-  if(d.rpDate){d.rpDate=addDays(d.rpDate,delta);if(d.cycleMode==='manual'&&d.cycleDay){const len=cycleLength(d);d.cycleDay=String((Number(d.cycleDay)-1+delta)%len+1);}}
-  else if(d.cycleDay){const len=Math.max(20,Math.min(45,Number(d.cycleLength)||28));d.cycleDay=String((Number(d.cycleDay)-1+delta)%len+1);}
-  else continue;
-  d.lastTimeSkip={days:delta,message:i,fingerprint};changed=true;
+  if(d.lastTimeSkip?.days===delta && i===d.lastTimeSkip.message+1 && m.is_user===false && d.lastTimeSkip.isUser===true)continue;
+  if(!d.rpDate && !d.cycleDay)continue;
+  advanceStoryDays(d,delta);
+  d.lastTimeSkip={days:delta,message:i,fingerprint,isUser:!!m.is_user};changed=true;
  }
  if(d.timeScanCursor!==chat.length){d.timeScanCursor=chat.length;changed=true;}
- if(changed){refreshStoryAlerts(d);save(d);}
+ if(changed){refreshStoryAlerts(d);refreshPregnancyChecks(d);save(d);}
  return changed;
 }
 function pregnancyMetrics(d){if(d.status!=='pregnant'||!d.conceptionDate||!d.rpDate)return null;const elapsed=daysBetween(d.conceptionDate,d.rpDate);if(elapsed===null||elapsed<0)return null;const gest=Math.max(20,Math.min(60,Number(d.gestation)||40));return {weeks:Math.floor((elapsed+14)/7),days:(elapsed+14)%7,due:addDays(d.conceptionDate,gest*7-14)};}
@@ -168,8 +207,8 @@ function summary(d){const len=cycleLength(d),day=currentCycleDay(d);let cycle=da
 function fertility(d){const len=cycleLength(d),day=currentCycleDay(d);if(!day)return '🌙 Укажи день цикла или сюжетные даты, чтобы увидеть условную фазу.';const ov=Math.max(1,len-14),from=Math.max(1,ov-5),to=Math.min(len,ov+1);const phase=day<=5?'Менструальная фаза':day<from?'Фолликулярная фаза':day<=to?'Условное фертильное окно': 'Лютеиновая фаза';return `${d.universe==='omegaverse'?'🐺 Омегаверс · ':'🌸 '}${phase} · день ${day}/${len}. Ориентировочная овуляция: день ${ov}; сюжетное фертильное окно: дни ${from}–${to}. ${d.universe==='omegaverse'?'Правила мира задаются автором.':'Это условный расчёт для ролевой, не медицинский прогноз и не метод контрацепции.'}`;}
 function render(){const root=document.getElementById('ups_tab_lifebloom');if(!root)return;const d=load();syncStoryTime(d);readModelSnapshot(d);const user=env.names().userName,stats=summary(d),people=peopleFor(d);const cyclePhase=(()=>{const m=fertility(d).match(/(?:🌸|🐺 Омегаверс · )(.+?) · день/);return m?m[1].replace(/ фаза$/i, ""):"";})();root.innerHTML=`<div class="ups_section_kicker">🌸 LIFE BLOOM</div><div class="ups_intro">Только твоя персона · отдельная история для каждого чата. Всё под твоим контролем.</div>
 ${d.heroLive?.mood||d.heroLive?.feeling?`<div class="lb-live-hero">🌷 ${esc([d.heroLive.mood,d.heroLive.feeling].filter(Boolean).join(' · '))}</div>`:''}<div class="lb-hero"><div class="lb-avatar" style="--ax:${Number(d.avatarX??50)}%;--ay:${Number(d.avatarY??30)}%;--az:${Number(d.avatarZoom??125)/100}">${d.avatar?`<img src="${esc(d.avatar)}" alt="Аватар">`:'🌷'}</div><div><div class="lb-overline">МОЯ ГЕРОИНЯ</div><div class="lb-name">${esc(user)}</div><div class="lb-muted">Её история, её выбор, её семья</div><label class="lb-upload">📷 Свой портрет <input id="lb_avatarFile" type="file" accept="image/*" hidden></label><button class="lb-mini" id="lb_avatarClear">Убрать</button><div class="lb-position">Кадр: <label>↔ <input id="lb_avatarX" type="range" min="0" max="100" value="${Number(d.avatarX??50)}"></label><label>↕ <input id="lb_avatarY" type="range" min="0" max="100" value="${Number(d.avatarY??30)}"></label><label>＋ <input id="lb_avatarZoom" type="range" min="100" max="250" value="${Number(d.avatarZoom??125)}"></label></div></div></div><div class="lb-stats"><div><small>🌙 Цикл</small><b>${esc(stats.cycle)}</b>${cyclePhase?`<em class="lb-stat-phase">${esc(cyclePhase)}</em>`:""}</div><div><small>💗 Материнство</small><b>${esc(stats.preg)}</b></div><div><small>🧸 Дети</small><b>${d.children.length}</b></div></div>
-${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h3>🌷 Состояние Ханаби</h3><div class="lb-grid"><div>💗 Желание близости<br><b>${esc(d.heroLive.desire||'—')}</b></div><div>🌸 Самочувствие<br><b>${esc(d.heroLive.physical||'—')}</b></div></div></div>`:''}${d.whisper?`<div class="lb-card lb-whisper"><h3>💌 Шёпот истории</h3><i>${esc(d.whisper)}</i></div>`:''}<div class="lb-card"><h3>🕰️ Время истории</h3>${input('rpLabel','Дата и место по плашке ролевой (любой календарь)',d.rpLabel)}<details class="lb-advanced"><summary>Обычный календарь (необязательно)</summary>${input('rpDate','Дата ролевой (ДД.ММ.ГГГГ или ГГГГ-ММ-ДД)',d.rpDate)}</details><div class="lb-muted">Впиши дату из ролевой. Для фантастического календаря достаточно одной строки.</div></div><div class="lb-card"><h3>🌙 Ритмы жизни</h3><div class="lb-grid">${input('cycleDay','День цикла',d.cycleDay,'number')}${input('cycleLength','Длина цикла (дни)',d.cycleLength,'number')}</div><details class="lb-advanced"><summary>Дата начала цикла (необязательно)</summary>${input('cycleStart','Первый день последнего цикла (ДД.ММ.ГГГГ)',d.cycleStart)}</details><div class="lb-muted">Указанный вручную день цикла имеет приоритет. Дата начала цикла не сбросит его в день 1. Расчёт ведётся исключительно по дате ролевой. Если в мире необычный календарь, используй ручной день цикла. Расчёт условный, для сюжета.</div><div class="lb-muted" id="lb_fertility">${fertility(d)}</div><div class="lb-grid"><label class="lb-field"><span>Вселенная</span><select id="lb_universe"><option value="standard">Обычная</option><option value="omegaverse">Омегаверс</option></select></label><label class="lb-field"><span>Контрацепция (сюжет)</span><select id="lb_contraception"><option value="unspecified">Не указана</option><option value="none">Нет</option><option value="barrier">Барьерная</option><option value="hormonal">Гормональная</option><option value="fictional">Фэнтези / другая</option></select></label></div></div>
-<div class="lb-card"><h3>🩷 Материнство</h3><label class="lb-field"><span>Состояние</span><select id="lb_status"><option value="none">Не указано</option><option value="pregnant">Беременна</option><option value="postpartum">После родов</option><option value="other">Другое</option></select></label><div class="lb-grid">${input('week','Неделя беременности',d.week,'number')}${input('due','Предполагаемая дата родов',d.due,'date')}</div><div class="lb-grid">${input('gestation','Срок беременности (недель)',d.gestation,'number')}${input('babies','Количество малышей',d.babies,'number')}</div>${input('partner','Отец / партнёр',d.partner)}${input('conceptionDate','Предполагаемое зачатие (сюжетная дата)',d.conceptionDate,'date')}<div class="lb-muted">${pregnancyMetrics(d)?`Срок: ${pregnancyMetrics(d).weeks} нед. ${pregnancyMetrics(d).days} дн. · ПДР: ${pregnancyMetrics(d).due}`:'При известной дате зачатия срок и ПДР рассчитываются по сюжетной дате.'}</div><label class="lb-field"><span>Завершение беременности</span><select id="lb_pregnancyOutcome"><option value="">Без изменений</option><option value="clear">Отменить ошибочную запись</option><option value="miscarriage">Выкидыш (сюжет)</option><option value="abortion">Прерывание (сюжет)</option></select></label><details class="lb-advanced"><summary>Дополнительные сведения (необязательно)</summary><label class="lb-field"><span>Сюжетные особенности, симптомы или пожелания</span><textarea id="lb_notes" rows="2">${esc(d.notes)}</textarea></label></details><button class="lb-btn lb-primary" id="lb_save">💾 Сохранить изменения</button></div>
+${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h3>🌷 Состояние Ханаби</h3><div class="lb-grid"><div>💗 Желание близости<br><b>${esc(d.heroLive.desire||'—')}</b></div><div>🌸 Самочувствие<br><b>${esc(d.heroLive.physical||'—')}</b></div></div></div>`:''}${d.whisper?`<div class="lb-card lb-whisper"><h3>💌 Шёпот истории</h3><i>${esc(d.whisper)}</i></div>`:''}<div class="lb-card"><h3>🕰️ Время истории</h3>${input('rpLabel','Дата и место по плашке ролевой (любой календарь)',d.rpLabel)}<details class="lb-advanced"><summary>Обычный календарь (необязательно)</summary>${input('rpDate','Дата ролевой (ДД.ММ.ГГГГ или ГГГГ-ММ-ДД)',d.rpDate)}</details><div class="lb-muted">Впиши дату из ролевой. Для фантастического календаря достаточно одной строки.</div></div><div class="lb-card"><h3>🌙 Ритмы жизни</h3><div class="lb-grid">${input('cycleDay','День цикла',d.cycleDay,'number')}${input('cycleLength','Длина цикла (дни)',d.cycleLength,'number')}</div><details class="lb-advanced"><summary>Дата начала цикла (необязательно)</summary>${input('cycleStart','Первый день последнего цикла (ДД.ММ.ГГГГ)',d.cycleStart)}</details><div class="lb-muted">Указанный вручную день цикла имеет приоритет. Дата начала цикла не сбросит его в день 1. Расчёт ведётся исключительно по дате ролевой. Если в мире необычный календарь, используй ручной день цикла. Расчёт условный, для сюжета.</div><button class="lb-btn" type="button" id="lb_nextDay">🌙 Следующий сюжетный день (+1)</button><div class="lb-muted">Автоматически учитываются явные переходы времени («на следующее утро», «спустя два дня») и метки [RP_DATE]. Если день в истории сменился без явной фразы, нажми +1. Счётчик не зависит от часов телефона.</div><div class="lb-muted" id="lb_fertility">${fertility(d)}</div><div class="lb-grid"><label class="lb-field"><span>Вселенная</span><select id="lb_universe"><option value="standard">Обычная</option><option value="omegaverse">Омегаверс</option></select></label><label class="lb-field"><span>Контрацепция (сюжет)</span><select id="lb_contraception"><option value="unspecified">Не указана</option><option value="none">Нет</option><option value="barrier">Барьерная</option><option value="hormonal">Гормональная</option><option value="fictional">Фэнтези / другая</option></select></label></div></div>
+<div class="lb-card"><h3>🧪 Сюжетное зачатие и тест</h3><div class="lb-muted">Время берётся только из даты ролевой. Записывай событие без контрацепции вручную или через подтверждённые сюжетные данные. Через 14 сюжетных дней появится напоминание о тесте. Положительный результат требует твоего выбора — система не объявляет беременность случайно.</div><button class="lb-btn" id="lb_exposure">💕 Записать близость без защиты (сегодня в ролевой)</button><div class="lb-muted">${(d.exposures||[]).slice(-8).reverse().map(x=>`<div class="lb-event">${esc(x.date)} · день ${esc(x.day||'неизвестен')} · ${x.possible?'🌸 условное фертильное окно':'вне рассчитанного окна / неизвестно'} · ${esc(x.result)} ${x.result==='pending'?`<button class="lb-btn" data-test="${esc(x.id)}">🧪 Результат теста</button>`:''}</div>`).join('')||'Событий пока нет.'}</div></div><div class="lb-card"><h3>🩷 Материнство</h3><label class="lb-field"><span>Состояние</span><select id="lb_status"><option value="none">Не указано</option><option value="pregnant">Беременна</option><option value="postpartum">После родов</option><option value="other">Другое</option></select></label><div class="lb-grid">${input('week','Неделя беременности',d.week,'number')}${input('due','Предполагаемая дата родов',d.due,'date')}</div><div class="lb-grid">${input('gestation','Срок беременности (недель)',d.gestation,'number')}${input('babies','Количество малышей',d.babies,'number')}</div>${input('partner','Отец / партнёр',d.partner)}${input('conceptionDate','Предполагаемое зачатие (сюжетная дата)',d.conceptionDate,'date')}<div class="lb-muted">${pregnancyMetrics(d)?`Срок: ${pregnancyMetrics(d).weeks} нед. ${pregnancyMetrics(d).days} дн. · ПДР: ${pregnancyMetrics(d).due}`:'При известной дате зачатия срок и ПДР рассчитываются по сюжетной дате.'}</div><label class="lb-field"><span>Завершение беременности</span><select id="lb_pregnancyOutcome"><option value="">Без изменений</option><option value="clear">Отменить ошибочную запись</option><option value="miscarriage">Выкидыш (сюжет)</option><option value="abortion">Прерывание (сюжет)</option></select></label><details class="lb-advanced"><summary>Дополнительные сведения (необязательно)</summary><label class="lb-field"><span>Сюжетные особенности, симптомы или пожелания</span><textarea id="lb_notes" rows="2">${esc(d.notes)}</textarea></label></details><button class="lb-btn lb-primary" id="lb_save">💾 Сохранить изменения</button></div>
 <div class="lb-card"><h3>🧸 Мои дети <span class="lb-count">${d.children.length}</span></h3><div id="lb_children">${d.children.length?d.children.map((c,i)=>`<div class="lb-child"><span>✦ <b>${esc(c.name||'Без имени')}</b><small>${esc([c.sex,c.birthday,c.father].filter(Boolean).join(' · '))}${c.description?` · ${esc(c.description)}`:''}${c.personality?` · Характер: ${esc(c.personality)}`:''}</small></span><button data-del="${i}" title="Удалить">✕</button></div>`).join(''):'<div class="lb-muted">Пока нет записей. Добавь ребёнка вручную.</div>'}</div><div class="lb-grid">${input('childName','Имя ребёнка')}${input('childSex','Пол')}</div><div class="lb-grid">${input('childBirth','Дата рождения','', 'date')}${input('childFather','Отец')}</div>${input('childDescription','Описание ребёнка')}${input('childPersonality','Характер / привычки')}<button class="lb-btn" id="lb_add">＋ Добавить ребёнка</button></div>
 <details class="lb-card lb-advanced"><summary>🔎 Восстановление событий из старой истории</summary><label class="lb-switch"><input id="lb_auto" type="checkbox" ${d.auto?'checked':''}> Анализировать новые сообщения без запросов к модели</label><div class="lb-muted">Распознавание осторожное: найденное событие остаётся предложением и никогда не меняет семейную историю без подтверждения.</div><button class="lb-btn" id="lb_scan">↻ Просмотреть доступную историю</button><div class="lb-muted">${d.lastScanned} сообщений просмотрено · ${d.candidates.length} предложений</div><div id="lb_candidates">${d.candidates.slice(-15).reverse().map(c=>`<div class="lb-event"><div class="lb-overline">${c.type==='pregnancy'?'ВОЗМОЖНАЯ БЕРЕМЕННОСТЬ':c.type==='birth'?'ВОЗМОЖНЫЕ РОДЫ':'СЕМЕЙНОЕ СОБЫТИЕ'} · сообщение ${c.index+1}</div><div>${esc(c.excerpt)}</div><button class="lb-btn" data-dismiss="${esc(c.id)}">Проверено · убрать</button></div>`).join('')}</div></details>`;
  // LifeBloom 0.3: visual dashboard and separate settings drawer. Existing handlers remain intact.
@@ -248,9 +287,12 @@ ${d.heroLive?.physical||d.heroLive?.desire?`<div class="lb-card lb-wellbeing"><h
  for(const axis of ['X','Y'])root.querySelector('#lb_avatar'+axis).oninput=e=>{const x=load();x['avatar'+axis]=Number(e.target.value);save(x);root.querySelector('.lb-avatar').style.setProperty('--a'+axis.toLowerCase(),e.target.value+'%');};
  root.querySelector('#lb_avatarZoom').oninput=e=>{const x=load();x.avatarZoom=Number(e.target.value);save(x);root.querySelector('.lb-avatar').style.setProperty('--az',x.avatarZoom/100);};
  root.querySelector('#lb_avatarClear').onclick=()=>{const x=load();x.avatar='';save(x);render();};
+ root.querySelector('#lb_exposure').onclick=()=>{const x=load();if(!x.rpDate){alert('Сначала укажи дату ролевой и сохрани её.');return;}if(registerIntimacy(x,x.rpDate)){save(x);}render();};
+ root.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{const x=load(),e=(x.exposures||[]).find(v=>v.id===b.dataset.test);if(!e)return;const days=x.rpDate?daysBetween(e.date,x.rpDate):null;if(days===null||days<14){alert('До сюжетного теста должно пройти минимум 14 дней.');return;}const answer=prompt('Результат сюжетного теста: + (положительный), - (отрицательный), ? (неопределённый)','?');if(!['+','-','?'].includes(answer))return;e.result=answer==='+'?'positive':answer==='-'?'negative':'uncertain';if(answer==='+'){if(confirm('Подтвердить беременность Ханаби в этой истории?')){x.status='pregnant';x.conceptionDate=e.date;x.week='';}}save(x);render();});
+ root.querySelector('#lb_nextDay').onclick=()=>{const x=load();if(!x.cycleDay){alert('Сначала задай день цикла и сохрани.');return;}advanceStoryDays(x,1);refreshStoryAlerts(x);save(x);render();};
  root.querySelector('#lb_save').onclick=()=>{const x=load();for(const f of ['rpLabel','rpDate','cycleDay','cycleLength','cycleStart','week','due','gestation','babies','partner','notes','conceptionDate'])x[f]=root.querySelector('#lb_'+f).value;
  const rpRaw=x.rpDate.trim(), startRaw=x.cycleStart.trim();
- x.rpDate=normalizeDate(rpRaw)||storyDateFromLabel(x.rpLabel);
+ x.rpDate=normalizeDate(rpRaw)||storyDateFromLabel(x.rpLabel)||bannerStoryDate(x.rpLabel);
  if(rpRaw&&!normalizeDate(rpRaw)){alert('Неверная дата ролевой. Используй ДД.ММ.ГГГГ или ГГГГ-ММ-ДД.');return;}
  x.cycleStart=normalizeDate(startRaw);
  if(startRaw&&!x.cycleStart){alert('Неверная дата начала цикла.');return;}
@@ -297,6 +339,7 @@ function readModelSnapshot(d){
    if(obj.whisper)d.whisper=clean(obj.whisper);
    for(const event of Array.isArray(obj.events)?obj.events.slice(0,8):[]){if(!['intimacy','pregnancy_confirmed','birth','loss','termination','cycle_start'].includes(event.type))continue;const eventId=id+':'+event.type+':'+String(event.date||'');if(!(d.storyEvents||[]).some(e=>e.id===eventId))d.storyEvents=[...(d.storyEvents||[]),{id:eventId,type:event.type,date:clean(event.date),note:clean(event.note),confirmed:false}].slice(-100);
     if(event.type==='intimacy'&&d.contraception==='none'&&!(d.alertHistory||[]).includes('intimacy:'+eventId)){
+      registerIntimacy(d,normalizeDate(event.date)||d.rpDate,'model');
       d.alertHistory=[...(d.alertHistory||[]),'intimacy:'+eventId].slice(-120);
       const noteId='story:'+eventId;d.notices=[...(d.notices||[]),{id:noteId,body:'🌸 В сюжете отмечена близость без контрацепции. Возможность беременности не равна подтверждению: дождись сюжетного теста или подтверди событие вручную.'}].slice(-25);d.unreadNotice=noteId;
     }}
