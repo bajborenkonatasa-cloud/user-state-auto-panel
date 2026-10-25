@@ -381,3 +381,6 @@
 
 .ups_novel_continue{width:100%!important;margin-top:10px!important}
 .ups_novel_continue:disabled{opacity:.65!important}
+
+/* Life Bloom story-only calendar */
+.lb-calendar .lb-cal-nav{display:flex;justify-content:space-between;align-items:center;margin:12px 0;gap:8px}.lb-calendar .lb-cal-nav button{background:#32223f;color:#fff;border:1px solid #76518b;border-radius:9px;padding:5px 16px}.lb-cal-week,.lb-cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}.lb-cal-week{font-size:11px;opacity:.75;margin-bottom:7px}.lb-cal-day{min-width:0;min-height:47px;padding:4px 0!important;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #4a365a;border-radius:8px;background:#20182d;color:#fff}.lb-cal-day small{font-size:10px;opacity:.8}.lb-cal-day.lb-cal-period{background:#69324f}.lb-cal-day.lb-cal-fertile{background:#4e305e}.lb-cal-day.lb-cal-today{outline:2px solid #b7a4ff;outline-offset:-2px}

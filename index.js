@@ -801,6 +801,7 @@ function bindEventsOnce(){
     if(event_types.USER_NAME_CHANGED)eventSource.on(event_types.USER_NAME_CHANGED,watchPersonaSwitch);
     if(!globalThis.__ups4_persona_watch)globalThis.__ups4_persona_watch=setInterval(watchPersonaSwitch,500);
     eventSource.on(event_types.GENERATION_STARTED,()=>updateInjection(loadState()));
+    if(event_types.MESSAGE_SENT)eventSource.on(event_types.MESSAGE_SENT,()=>setTimeout(onLifeBloomMessage,300));
     eventSource.on(event_types.MESSAGE_RECEIVED,()=>{setTimeout(onLifeBloomMessage,300);setTimeout(onLifeBloomMessage,1300);setTimeout(clearOneShotAfterReply,50);});
 }
 function init(){
