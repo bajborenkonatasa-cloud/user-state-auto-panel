@@ -107,16 +107,18 @@ function addDays(s,n){const d=new Date(s+'T12:00:00');if(!Number.isFinite(+d))re
 // Story clock follows explicit narrated transitions, not the device clock.
 function storyDelta(raw){
  const text=String(raw||'').replace(/<!--\s*LIFEBLOOM[\s\S]*?-->/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ');
+ // Fertility reminders and future-looking phrases are NOT elapsed story time.
+ if(/(?:через\s+(?:три|3)\s+дн(?:я|ей)\s+овуляц|фертильн(?:ое|ый)\s+окно|ориентировочн(?:ая|ый)\s+овуляц)/iu.test(text))return null;
  const numbers={один:1,одна:1,одну:1,два:2,две:2,три:3,четыре:4,пять:5,шесть:6,семь:7,восемь:8,девять:9,десять:10};
  const unitDays=u=>/^д|^сут/i.test(u)?1:/^нед/i.test(u)?7:/^мес/i.test(u)?30:365;
- const re=/(?:спустя|прошл[ои]|прошло|минул[ои]|пролетел[ои]|истекл[ои]|через|по\s+прошествии)\s+(\d{1,3}|один|одна|одну|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(день|дня|дней|сутки|суток|неделю|недели|недель|месяц|месяца|месяцев|год|года|лет)|(?:на\s+следующ(?:ий|ее)\s+(?:день|утро)|следующ(?:им|ее)\s+(?:днём|утром)|день\s+спустя|наутро|на\s+следующее\s+утро|наступил\s+новый\s+день|прошла\s+ночь)/giu;
+ const re=/(?:спустя|прошл[ои]|прошло|минул[ои]|пролетел[ои]|истекл[ои]|по\s+прошествии)\s+(\d{1,3}|один|одна|одну|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(день|дня|дней|сутки|суток|неделю|недели|недель|месяц|месяца|месяцев|год|года|лет)|(?:на\s+следующ(?:ий|ее)\s+(?:день|утро)|следующ(?:им|ее)\s+(?:днём|утром)|день\s+спустя|наутро|на\s+следующее\s+утро|наступил\s+новый\s+день|прошла\s+ночь)/giu;
  let last=null,match;
  while((match=re.exec(text))){
   const before=text.slice(Math.max(0,match.index-65),match.index);
   if(/(?:если|возможно|может|планир|собира|хочет|мечта|представ|будет|могл[аои]? бы|не прошло)/iu.test(before))continue;
   const n=match[1]?(Number(match[1])||numbers[match[1].toLowerCase()]):1;
   const days=n*(match[2]?unitDays(match[2]):1);
-  if(days>0&&days<=36500)last=days;
+  if(days>0&&days<=31)last=days; // Large jumps require explicit manual date confirmation.
  }
  return last;
 }
@@ -187,11 +189,12 @@ function syncStoryTime(d){
   const raw=String(m.mes||'').slice(0,30000);
   const date=messageStoryDate(raw)||bannerStoryDate(raw);
   let delta=null;
-  if(date && d.rpDate){const difference=daysBetween(d.rpDate,date);if(difference!==null&&difference>0&&difference<=36500)delta=difference;}
+  if(date && d.rpDate){const difference=daysBetween(d.rpDate,date);if(difference!==null&&difference>0&&difference<=31)delta=difference;}
   else if(date && !d.rpDate){d.rpDate=date;changed=true;}
   if(delta===null && !date)delta=storyDelta(raw);
   if(!delta)continue;
   // A model may repeat the user's previous time skip in its reply.
+  // Reject speculative jumps; calendar can still be changed manually to any year.
   const fingerprint=raw.replace(/<[^>]*>/g,' ').trim().slice(0,250);
   if(d.lastTimeSkip?.days===delta && i===d.lastTimeSkip.message+1 && m.is_user===false && d.lastTimeSkip.isUser===true)continue;
   if(!d.rpDate && !d.cycleDay)continue;
