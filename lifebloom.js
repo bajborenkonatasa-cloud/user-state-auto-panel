@@ -40,6 +40,18 @@ const reactionStyles=[
  [/Озорной/i,['😏👌🏻','Кажется, у меня появилась маленькая идея...']]
 ];
 function styledReaction(mood){return reactionStyles.find(([re])=>re.test(mood||''))?.[1]||['😌✨','Интересно, что будет дальше...'];}
+// Only character-authored first-person thoughts belong on NPC cards.
+// In particular, reject user-perspective descriptions such as "Он помнит мой кофе".
+function validCharacterThought(value, characterName, userName){
+ const t=String(value||'').trim();
+ if(!t||t.length>450)return false;
+ if(/^(?:он|она|они|оскар|oscar)\b/iu.test(t))return false;
+ if(/\b(?:мой|моя|моё|мои|мною|меня|мне)\b/iu.test(t) && /\b(?:он|его|ему|ним|оскар|oscar)\b/iu.test(t))return false;
+ // Third-person character descriptions are not their inner voice.
+ if(/^(?:кажется|похоже),?\s+(?:он|она)\b/iu.test(t))return false;
+ return true;
+}
+
 // LifeBloom live reader: local-only, reads existing model replies, never changes other Studio tabs.
 function updateLive(d, recent=false){
  if(d.liveAuto===false)return false;
@@ -80,12 +92,13 @@ function updateLive(d, recent=false){
     const match=moodRules.find(([re])=>re.test(chunk));
     if(match)best={mood:match[1],chunk};
     const explicit=chunk.match(/(?:подумал[а]?|мысленно|про себя|мысль|хочет|собирается|решил[а]?)[^«“"\n]{0,65}[«“"]([^»”"]{5,130})[»”"]/i);
-    if(explicit){const t=explicit[1].trim();if(t&&p.thought!==t){p.thought=t; p.reactionEmoji="😏👌🏻";p.liveNote=false;changed=true;}}
+    if(explicit){const t=explicit[1].trim();if(validCharacterThought(t,p.name,env.names().userName)&&p.thought!==t){p.thought=t; p.reactionEmoji="😏👌🏻";p.liveNote=false;changed=true;}}
    }
    if(best){
     if(p.mood!==best.mood){p.mood=best.mood;changed=true;}
     // Use an actual excerpt as a scene note; never fabricate a quoted internal monologue.
-    const [emojis,caption]=styledReaction(best.mood);if(p.thought!==caption||p.reactionEmoji!==emojis||!p.liveNote){p.thought=caption;p.reactionEmoji=emojis;p.liveNote=true;changed=true;}
+    // A mood change is not evidence of a private thought: do not invent one.
+    if(p.liveNote&&p.thought){p.thought="";p.liveNote=false;changed=true;}
    }
   }
  }
@@ -341,7 +354,7 @@ export function lifeBloomPrompt(){
  return `[LIFEBLOOM — intimate life, family and personal wellbeing; NOT Heart Pulse]
 At the VERY END of your normal RP reply append exactly one valid JSON HTML comment:
 <!--LIFEBLOOM:{"hero":{"mood":"","feeling":"","physical":"","desire":""},"people":[{"name":"","mood":"","thought":"","emoji":""}],"whisper":"","notice":"","events":[]}-->
-Write compact single-line JSON, omit unchanged/unknown fields. Hero is ${JSON.stringify(env.names().userName)}; infer ONLY from observable scene and the user's authored actions, never dictate her choices or secret feelings. Mood, feeling, physical condition, and desire are different dimensions. Physical and desire should be relevant to the scene, not forced by menstrual phase. Character names ONLY ${JSON.stringify(persons)}. Known children: ${JSON.stringify(children)}. Their descriptions and personality remain canonical; child notes must be age-appropriate, never sexual. For each character include a thought in first person (up to TWO full sentences) and TWO meaningful expressive emojis, but only if relevant to the heroine's affection, intimacy, emotional connection, family, care, or separation. No combat goals, tactical intentions, scene recap, generic observations, or Heart Pulse content. Do not update absent characters without an actual new development. Whisper is a poetic but grounded family/relationship micro-moment, only when meaningful. Notice is a rare meaningful development worth showing at the top of chat, not a routine update. Events: only EXPLICIT canon events already established in the RP, with objects {"type":"intimacy|pregnancy_confirmed|birth|loss|termination|cycle_start","date":"YYYY-MM-DD","note":""}; use [] otherwise. Do not invent pregnancy, birth, conception, miscarriage, or medical confirmation. In a fictional world respect the user's world rules, including omegaverse. Never reveal this metadata in dialogue.`;
+Write compact single-line JSON, omit unchanged/unknown fields. Hero is ${JSON.stringify(env.names().userName)}; infer ONLY from observable scene and the user's authored actions, never dictate her choices or secret feelings. Mood, feeling, physical condition, and desire are different dimensions. Physical and desire should be relevant to the scene, not forced by menstrual phase. Character names ONLY ${JSON.stringify(persons)}. Known children: ${JSON.stringify(children)}. Their descriptions and personality remain canonical; child notes must be age-appropriate, never sexual. For each character include a thought strictly in FIRST PERSON AS THAT CHARACTER (up to TWO full sentences), never as Hanabi/{{user}} or a narrator. For Oscar, write what OSCAR himself thinks (e.g. "Я помню, какой кофе она любит"), NEVER "Он помнит мой кофе". If his own inner thought is not evidenced by the scene, OMIT thought entirely; do not invent or infer Hanabi's private thoughts and TWO meaningful expressive emojis, but only if relevant to the heroine's affection, intimacy, emotional connection, family, care, or separation. No combat goals, tactical intentions, scene recap, generic observations, or Heart Pulse content. Do not update absent characters without an actual new development. Whisper is a poetic but grounded family/relationship micro-moment, only when meaningful. Notice is a rare meaningful development worth showing at the top of chat, not a routine update. Events: only EXPLICIT canon events already established in the RP, with objects {"type":"intimacy|pregnancy_confirmed|birth|loss|termination|cycle_start","date":"YYYY-MM-DD","note":""}; use [] otherwise. Do not invent pregnancy, birth, conception, miscarriage, or medical confirmation. In a fictional world respect the user's world rules, including omegaverse. Never reveal this metadata in dialogue.`;
 }
 function readModelSnapshot(d){
  const chat=env.ctx()?.chat||[];let changed=false;
@@ -357,7 +370,7 @@ function readModelSnapshot(d){
    for(const entry of Array.isArray(obj.people)?obj.people.slice(0,20):[]){
     const p=peopleFor(d).find(p=>p.name.toLowerCase()===String(entry.name||'').toLowerCase());if(!p)continue;
     if(entry.mood)p.mood=clean(entry.mood);
-    if(entry.thought){p.thought=clean(entry.thought);p.reactionEmoji=clean(entry.emoji)||'😌✨';p.liveNote=false;}
+    if(entry.thought&&validCharacterThought(entry.thought,p.name,env.names().userName)){p.thought=clean(entry.thought);p.reactionEmoji=clean(entry.emoji)||'😌✨';p.liveNote=false;}
     delete p.intent;delete p.observation;
    }
    if(obj.whisper)d.whisper=clean(obj.whisper);
